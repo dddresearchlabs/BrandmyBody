@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { BodyMap } from "@/components/body-map";
 import type { Auction, Spot } from "@/lib/auction";
-import { formatUsd } from "@/lib/auction";
+import { dollars, formatUsd } from "@/lib/auction";
 
 const NAV = [
   { href: "#auction", label: "Live auction" },
@@ -366,13 +366,12 @@ export function Landing() {
       <dialog
         ref={dialogRef}
         aria-labelledby={titleId}
-        className="w-[min(92vw,28rem)] rounded-xl border border-line bg-background p-6 text-foreground backdrop:bg-black/70"
+        className="w-[min(92vw,32rem)] max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-background p-6 text-foreground backdrop:bg-black/70"
         onClose={() => setModalOpen(false)}
       >
         <GetSpotModal
           titleId={titleId}
           spot={selected ?? auction?.spots[0] ?? null}
-          closed={Boolean(auction?.closed || countdown.closed)}
           onClose={() => setModalOpen(false)}
         />
       </dialog>
@@ -380,17 +379,71 @@ export function Landing() {
   );
 }
 
+const fieldClass =
+  "mt-1 w-full rounded-md border border-line bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-accent";
+
 function GetSpotModal({
   titleId,
   spot,
-  closed,
   onClose,
 }: {
   titleId: string;
   spot: Spot | null;
-  closed: boolean;
   onClose: () => void;
 }) {
+  const minDollars = spot ? dollars(spot.minNextCents) : 0;
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!spot || submitting) return;
+
+    const form = new FormData(event.currentTarget);
+    const bidDollars = Number(form.get("amount"));
+    const brandName = String(form.get("brandName") ?? "").trim();
+    const email = String(form.get("email") ?? "").trim();
+
+    if (!Number.isFinite(bidDollars) || bidDollars < minDollars) {
+      setError(`Bid must be at least ${formatUsd(spot.minNextCents)}`);
+      return;
+    }
+    if (!brandName) {
+      setError("Brand name is required");
+      return;
+    }
+    if (!email || !email.includes("@")) {
+      setError("Email is required");
+      return;
+    }
+
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spotId: spot.spotId,
+          bidCents: Math.round(bidDollars * 100),
+          brandName,
+          email,
+        }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setError(data.error ?? "Checkout failed");
+        setSubmitting(false);
+        return;
+      }
+      window.location.assign(data.url);
+    } catch {
+      setError("Checkout failed");
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div>
       <h2 id={titleId} className="font-serif text-2xl">
@@ -406,26 +459,82 @@ function GetSpotModal({
       ) : (
         <p className="mt-3 text-sm text-muted">Loading spots…</p>
       )}
-      <p className="mt-4 text-sm text-muted">
-        Stripe checkout is not live yet. This is paid placement, not an
-        endorsement.
+      <p className="mt-3 text-sm text-muted">
+        Winning logos are printed as ink tattoos and worn for 365 days. Paid
+        placement, not an endorsement.
       </p>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <button
-          type="button"
-          disabled
-          className="rounded-full bg-accent px-4 py-2 text-sm text-white opacity-50"
-        >
-          {closed ? "Auction closed" : "Pay deposit with Stripe"}
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-full border border-line px-4 py-2 text-sm"
-        >
-          Close
-        </button>
-      </div>
+      <form
+        key={spot?.spotId ?? "empty"}
+        className="mt-5 grid gap-3"
+        onSubmit={onSubmit}
+      >
+        <label className="text-sm">
+          Bid amount
+          <input
+            name="amount"
+            type="number"
+            required
+            min={minDollars}
+            step="1"
+            defaultValue={minDollars || ""}
+            className={fieldClass}
+          />
+        </label>
+        <label className="text-sm">
+          Brand name
+          <input
+            name="brandName"
+            type="text"
+            required
+            autoComplete="organization"
+            className={fieldClass}
+          />
+        </label>
+        <label className="text-sm">
+          Website
+          <input name="website" type="url" placeholder="https://" className={fieldClass} />
+        </label>
+        <label className="text-sm">
+          X handle
+          <input name="xHandle" type="text" placeholder="@brand" className={fieldClass} />
+        </label>
+        <label className="text-sm">
+          Email
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            className={fieldClass}
+          />
+        </label>
+        <label className="text-sm">
+          Logo
+          <input
+            name="logo"
+            type="file"
+            accept="image/*"
+            className={`${fieldClass} file:mr-3 file:rounded file:border-0 file:bg-line file:px-2 file:py-1 file:text-foreground`}
+          />
+        </label>
+        {error ? <p className="text-sm text-accent">{error}</p> : null}
+        <div className="mt-2 flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={submitting || !spot}
+            className="rounded-full bg-accent px-4 py-2 text-sm text-white hover:brightness-110 disabled:opacity-50"
+          >
+            {submitting ? "Redirecting…" : "Get a spot"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-line px-4 py-2 text-sm"
+          >
+            Close
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
