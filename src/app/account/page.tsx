@@ -1,14 +1,16 @@
 import { SiteNav } from "@/components/site-nav";
 import { TimeLeft } from "@/components/time-left";
 import { formatUsd } from "@/lib/auction";
+import { getSessionUser } from "@/lib/auth";
 import {
   durationLabel,
   isListingClosed,
   minStartCents,
   type Listing,
 } from "@/lib/listings";
-import { fetchListings } from "@/lib/listings-db";
+import { fetchListingsByOwner } from "@/lib/listings-db";
 import { publicError } from "@/lib/public-error";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +20,13 @@ export const metadata = {
 };
 
 export default async function AccountPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login?next=/account");
+
   let listings: Listing[] = [];
   let error: string | null = null;
   try {
-    listings = await fetchListings();
+    listings = await fetchListingsByOwner(user.id);
   } catch (err) {
     error = publicError(err, "Could not load listings");
   }
@@ -35,14 +40,14 @@ export default async function AccountPage() {
         </p>
         <h1 className="mt-3 font-serif text-4xl">Account</h1>
         <p className="mt-3 text-muted">
-          All listings. Auth is not wired yet, so this shows every listing.
+          Your listings. Connect later is not wired yet.
         </p>
 
         {error ? <p className="mt-10 text-accent">{error}</p> : null}
 
         {!error && listings.length === 0 ? (
           <p className="mt-10 text-muted">
-            No listings yet.{" "}
+            You have no listings yet.{" "}
             <a href="/list" className="text-accent hover:underline">
               List a body
             </a>

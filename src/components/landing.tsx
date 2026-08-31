@@ -183,9 +183,6 @@ export function Landing({ listing }: { listing?: Listing }) {
                 {item.label}
               </a>
             ))}
-            <a href="/account" className="hover:text-foreground">
-              Account
-            </a>
             {listingClosed ? (
               <span className="rounded-full border border-line px-4 py-2 text-sm">
                 Closed

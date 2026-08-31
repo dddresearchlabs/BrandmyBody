@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { AuthNav } from "@/components/auth-nav";
 
 export function SiteNav({
   extra,
@@ -27,6 +30,7 @@ export function SiteNav({
             List a body
           </a>
           {extra}
+          <AuthNav />
         </nav>
       </div>
     </header>

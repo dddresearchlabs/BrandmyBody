@@ -69,6 +69,10 @@ export function ListForm() {
         listing?: { id: string };
         error?: string;
       };
+      if (res.status === 401) {
+        router.push("/login?next=/list");
+        return;
+      }
       if (!res.ok || !data.listing) {
         setError(data.error ?? "Could not save listing");
         setSubmitting(false);

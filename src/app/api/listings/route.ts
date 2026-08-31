@@ -1,4 +1,5 @@
 import { insertListing, fetchLiveListings } from "@/lib/listings-db";
+import { getSessionUser } from "@/lib/auth";
 import { publicError } from "@/lib/public-error";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const user = await getSessionUser();
+  if (!user) {
+    return Response.json({ error: "Sign in to list a body" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -27,7 +33,7 @@ export async function POST(request: Request) {
     body && typeof body === "object" ? (body as Record<string, unknown>) : {};
 
   try {
-    const listing = await insertListing({
+    const listing = await insertListing(user.id, {
       displayName: String(payload.displayName ?? ""),
       socials: {
         x: String((payload.socials as { x?: string } | undefined)?.x ?? ""),
@@ -58,14 +64,19 @@ export async function POST(request: Request) {
     return Response.json({ listing }, { status: 201 });
   } catch (err) {
     const message = publicError(err, "Could not save listing");
+    const validation = [
+      "Display name is required",
+      "Choose an auction length",
+      "Starting price is required",
+      "Select at least one spot",
+      "Each selected spot needs a starting price",
+    ];
     const status =
-      message === "Display name is required" ||
-      message === "Choose an auction length" ||
-      message === "Starting price is required" ||
-      message === "Select at least one spot" ||
-      message === "Each selected spot needs a starting price"
-        ? 400
-        : 503;
+      message === "Sign in to list a body"
+        ? 401
+        : validation.includes(message)
+          ? 400
+          : 503;
     return Response.json({ error: message }, { status });
   }
 }

@@ -165,6 +165,27 @@ export async function fetchLiveListings() {
   return fetchListings("live");
 }
 
+export async function fetchListingsByOwner(ownerId: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .select(
+      "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status",
+    )
+    .eq("owner_id", ownerId)
+    .order("ends_at", { ascending: true });
+  if (error) fail(error, "Could not load listings");
+  const rows = (data ?? []) as ListingRow[];
+  const { spots, bids } = await spotsAndBids(rows.map((row) => row.id));
+  return rows.map((row) =>
+    assemble(
+      row,
+      spots.filter((spot) => spot.listing_id === row.id),
+      bids.filter((bid) => bid.listing_id === row.id),
+    ),
+  );
+}
+
 export async function fetchListing(id: string) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -207,7 +228,10 @@ function buildSpots(input: CreateListingInput) {
   }));
 }
 
-export async function insertListing(input: CreateListingInput) {
+export async function insertListing(ownerId: string, input: CreateListingInput) {
+  if (!ownerId) {
+    throw new Error("Sign in to list a body");
+  }
   const displayName = input.displayName.trim();
   if (!displayName) {
     throw new Error("Display name is required");
@@ -241,6 +265,7 @@ export async function insertListing(input: CreateListingInput) {
       ends_at: endsAt,
       entire_body: input.scope === "entire",
       status: "live",
+      owner_id: ownerId,
     })
     .select(
       "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status",
