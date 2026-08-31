@@ -87,6 +87,11 @@ export default async function AccountPage() {
                     <p className="mt-1 font-mono text-sm">
                       <TimeLeft endsAt={listing.endsAt} />
                     </p>
+                    {listing.refundError ? (
+                      <p className="mt-2 text-sm text-accent">
+                        {listing.refundError}
+                      </p>
+                    ) : null}
                   </div>
                   <a
                     href={`/b/${listing.id}`}

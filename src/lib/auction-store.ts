@@ -2,6 +2,7 @@ import "server-only";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
+  antiSnipeEndsAt,
   asLiveBid,
   minNextCents,
   type Auction,
@@ -103,17 +104,47 @@ export function hasHomeSession(sessionId: string) {
   return load().processedSessionIds.includes(sessionId);
 }
 
-export function recordHomeBid(sessionId: string, spotId: number, bid: LiveBid) {
+export function recordHomeBid(
+  sessionId: string,
+  spotId: number,
+  bid: LiveBid,
+  paidAt = Date.now(),
+) {
   const state = load();
   if (state.processedSessionIds.includes(sessionId)) {
-    return { already: true as const };
+    return {
+      already: true as const,
+      previous: null as LiveBid | null,
+      accepted: true as const,
+      endsAt: state.endsAt,
+    };
   }
   const spot = state.spots.find((row) => row.spotId === spotId);
   if (!spot) {
     throw new Error("Unknown spot");
   }
-  spot.current = bid;
+  const previous = asLiveBid(spot.current);
+  const accepted = !previous || bid.amountCents > previous.amountCents;
   state.processedSessionIds.push(sessionId);
+  if (!accepted) {
+    save(state);
+    return {
+      already: false as const,
+      previous: null as LiveBid | null,
+      accepted: false as const,
+      endsAt: state.endsAt,
+    };
+  }
+  spot.current = { ...bid, status: "live" };
+  const nextEnds = antiSnipeEndsAt(state.endsAt, paidAt);
+  if (new Date(nextEnds).getTime() > new Date(state.endsAt).getTime()) {
+    state.endsAt = nextEnds;
+  }
   save(state);
-  return { already: false as const };
+  return {
+    already: false as const,
+    previous,
+    accepted: true as const,
+    endsAt: state.endsAt,
+  };
 }

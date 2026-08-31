@@ -7,19 +7,24 @@ import {
   recordHomeBid,
 } from "@/lib/auction-store";
 import {
-  fetchListing,
-  hasListingBidSession,
-  insertListingBid,
+  markListingBidRefunded,
+  markListingBidRefundError,
+  recordPaidListingBid,
 } from "@/lib/listings-db";
 import { parseSocials } from "@/lib/listings";
 import { publicError } from "@/lib/public-error";
-import { getStripe } from "@/lib/stripe";
+import {
+  paymentIntentIdFromSession,
+  refundOutbidPayment,
+  retrieveTestCheckoutSession,
+} from "@/lib/stripe-refund";
 import { spotById } from "@/lib/spots";
 
 export type RecordedCheckout = {
   unpaid: boolean;
   already: boolean;
   error?: string;
+  refundError?: string;
   listingId: string;
   spotId: number;
   spotName: string;
@@ -44,7 +49,10 @@ function emptyResult(partial: Partial<RecordedCheckout> = {}): RecordedCheckout 
   };
 }
 
-function bidFromMetadata(session: Stripe.Checkout.Session) {
+function bidFromMetadata(
+  session: Stripe.Checkout.Session,
+  paymentIntentId: string | null,
+) {
   const metadata = session.metadata ?? {};
   const listingId = asString(metadata.listingId) || "home";
   const spotId = Number(metadata.spotId);
@@ -75,6 +83,7 @@ function bidFromMetadata(session: Stripe.Checkout.Session) {
     logoUrl: asString(metadata.logoUrl) || null,
     status: "live",
     stripeSessionId: session.id,
+    stripePaymentIntentId: paymentIntentId ?? undefined,
   };
 
   return {
@@ -85,6 +94,29 @@ function bidFromMetadata(session: Stripe.Checkout.Session) {
     email,
     href: listingId === "home" ? "/" : `/b/${listingId}`,
   };
+}
+
+async function refundPrevious(input: {
+  previousSessionId?: string | null;
+  previousPaymentIntentId?: string | null;
+  newSessionId: string;
+  newPaymentIntentId?: string | null;
+  bidId?: string;
+}) {
+  const result = await refundOutbidPayment({
+    previousSessionId: input.previousSessionId,
+    previousPaymentIntentId: input.previousPaymentIntentId,
+    newSessionId: input.newSessionId,
+    newPaymentIntentId: input.newPaymentIntentId,
+  });
+  if (input.bidId) {
+    if (result.error) {
+      await markListingBidRefundError(input.bidId, result.error);
+    } else {
+      await markListingBidRefunded(input.bidId, result.paymentIntentId);
+    }
+  }
+  return result.error;
 }
 
 export async function recordPaidCheckout(
@@ -98,12 +130,14 @@ export async function recordPaidCheckout(
     return emptyResult({ unpaid: true });
   }
 
-  const parsed = bidFromMetadata(session);
+  const paymentIntentId = paymentIntentIdFromSession(session);
+  const parsed = bidFromMetadata(session, paymentIntentId);
   if ("error" in parsed) {
     return emptyResult({ error: parsed.error });
   }
 
   const { listingId, spotId, spotName, bid, email, href } = parsed;
+  const paidAt = (session.created || 0) * 1000 || Date.now();
 
   try {
     if (listingId === "home") {
@@ -121,34 +155,33 @@ export async function recordPaidCheckout(
           href,
         };
       }
-      recordHomeBid(session.id, spotId, bid);
+      const recorded = recordHomeBid(session.id, spotId, bid, paidAt);
+      let refundError: string | undefined;
+      if (recorded.previous) {
+        refundError =
+          (await refundPrevious({
+            previousSessionId: recorded.previous.stripeSessionId,
+            previousPaymentIntentId: recorded.previous.stripePaymentIntentId,
+            newSessionId: session.id,
+            newPaymentIntentId: paymentIntentId,
+          })) ?? undefined;
+      }
       return {
         unpaid: false,
         already: false,
+        refundError,
         listingId,
         spotId,
         spotName,
-        bid,
+        bid: recorded.accepted ? bid : null,
         href,
+        error: recorded.accepted
+          ? undefined
+          : "A higher bid is already live on this spot.",
       };
     }
 
-    if (await hasListingBidSession(session.id)) {
-      const listing = await fetchListing(listingId);
-      const current =
-        listing?.spots.find((spot) => spot.spotId === spotId)?.current ?? bid;
-      return {
-        unpaid: false,
-        already: true,
-        listingId,
-        spotId,
-        spotName,
-        bid: asLiveBid(current) ?? bid,
-        href,
-      };
-    }
-
-    await insertListingBid({
+    const recorded = await recordPaidListingBid({
       listingId,
       spotId,
       amountCents: bid.amountCents,
@@ -158,16 +191,34 @@ export async function recordPaidCheckout(
       email,
       logoUrl: bid.logoUrl,
       stripeSessionId: session.id,
+      stripePaymentIntentId: paymentIntentId,
+      paidAt,
     });
+
+    const refundErrors: string[] = [];
+    for (const previous of recorded.previous) {
+      const refundError = await refundPrevious({
+        previousSessionId: previous.stripeSessionId,
+        previousPaymentIntentId: previous.stripePaymentIntentId,
+        newSessionId: session.id,
+        newPaymentIntentId: paymentIntentId,
+        bidId: previous.id,
+      });
+      if (refundError) refundErrors.push(refundError);
+    }
 
     return {
       unpaid: false,
-      already: false,
+      already: recorded.already,
+      refundError: refundErrors[0],
       listingId,
       spotId,
       spotName,
-      bid,
+      bid: recorded.accepted ? { ...bid, status: "live" } : null,
       href,
+      error: recorded.accepted
+        ? undefined
+        : "A higher bid is already live on this spot.",
     };
   } catch (err) {
     return emptyResult({
@@ -189,7 +240,6 @@ export async function completePaidSession(sessionId: string) {
     });
   }
 
-  const stripe = getStripe();
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const session = await retrieveTestCheckoutSession(sessionId);
   return recordPaidCheckout(session);
 }

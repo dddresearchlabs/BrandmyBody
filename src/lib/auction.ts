@@ -6,10 +6,21 @@ export type LiveBid = {
   logoUrl: string | null;
   status: string;
   stripeSessionId?: string;
+  stripePaymentIntentId?: string;
 };
 
 /** Min next bid beats current by $10. */
 export const BID_INCREMENT_CENTS = 1000;
+
+/** Last 10 minutes of an auction: a paid bid extends close by 10 minutes. */
+export const ANTI_SNIPE_MS = 10 * 60 * 1000;
+
+export function antiSnipeEndsAt(endsAt: string, paidAt = Date.now()) {
+  const close = new Date(endsAt).getTime();
+  if (!Number.isFinite(close)) return endsAt;
+  if (paidAt < close - ANTI_SNIPE_MS) return endsAt;
+  return new Date(paidAt + ANTI_SNIPE_MS).toISOString();
+}
 
 export function minNextCents(
   startCents: number,
@@ -40,6 +51,7 @@ export function asLiveBid(value: unknown): LiveBid | null {
     logoUrl: text("logoUrl"),
     status: "live",
     stripeSessionId: text("stripeSessionId") ?? undefined,
+    stripePaymentIntentId: text("stripePaymentIntentId") ?? undefined,
   };
 }
 

@@ -76,6 +76,9 @@ export default async function SuccessPage({ searchParams }: Props) {
       } else if (result.bid) {
         heading = result.already ? "Bid already recorded" : "You're on the body";
         body = `${result.bid.brandName ?? "Your brand"} is live on ${result.spotName} at ${formatUsd(result.bid.amountCents)}.`;
+        if (result.refundError) {
+          body = `${body} Previous bidder could not be refunded: ${result.refundError}`;
+        }
         href = result.href;
         linkLabel =
           result.listingId === "home" ? "View the auction" : "View the listing";

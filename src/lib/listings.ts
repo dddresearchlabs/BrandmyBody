@@ -44,6 +44,7 @@ export type Listing = {
   durationDays: DurationDays;
   endsAt: string;
   createdAt: string;
+  refundError?: string | null;
 };
 
 export type CreateListingInput = {
