@@ -33,7 +33,7 @@ Brands bid on logo spots on my body. Winning logos are printed as ink tattoo and
 Site nav (Browse, List a body, Log in / Account / Log out) on `/`, `/browse`, `/list`, `/account`, `/b/[id]`.
 ## Marketplace
 People list their own bodies. The original single-body demo stays at `/`. No Stripe Connect.
-- Auth: Supabase email magic link. `/login` emails a link and accepts the 6-digit code for tests. `/logout` signs out. `/auth/callback` completes the link. Add `http://localhost:3000/auth/callback` and the production `/auth/callback` URL to Supabase Auth redirect allow list.
+- Auth: Supabase email magic link. `/login` emails a link and accepts the 6-digit code for tests. `/logout` signs out. `/auth/callback` exchanges the PKCE `code` for a session and sets auth cookies on the redirect (`@supabase/ssr` `getAll`/`setAll`). Default after success is `/account`. Exchange errors show on `/login` (no secrets). Add `http://localhost:3000/auth/callback` and the production `/auth/callback` URL to the Supabase Auth redirect allow list (no query string).
 - `/list` and `/connect` require a logged-in user. `/connect` is a placeholder; Stripe Connect is not wired. Test checkout stays as it is.
 - `/list` — create a listing: display name, socials (X, Instagram, TikTok, website), entire body or selected parts, starting prices, auction length. New rows set `owner_id` from the session. No backfill.
 - Auction length: 1 day / 3 days / 1 week / 2 weeks, stored as `durationDays`: 1 | 3 | 7 | 14. On create, `endsAt` = now + durationDays

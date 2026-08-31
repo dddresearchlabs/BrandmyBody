@@ -21,8 +21,11 @@ export default async function LoginPage({ searchParams }: Props) {
   if (user) redirect(next);
 
   const errorRaw = Array.isArray(params.error) ? params.error[0] : params.error;
-  const initialError =
-    errorRaw === "auth" ? "Could not finish sign in. Try again." : undefined;
+  const initialError = errorRaw?.trim()
+    ? errorRaw.trim() === "auth"
+      ? "Could not finish sign in. Try again."
+      : errorRaw.trim().slice(0, 180)
+    : undefined;
 
   return (
     <div className="flex flex-1 flex-col">

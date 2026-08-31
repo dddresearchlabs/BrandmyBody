@@ -36,11 +36,14 @@ export function LoginForm({
     try {
       const supabase = createClient();
       const origin = window.location.origin;
+      document.cookie = `bmb-next=${next}; Path=/; Max-Age=900; SameSite=Lax${
+        window.location.protocol === "https:" ? "; Secure" : ""
+      }`;
       const { error: sendError } = await supabase.auth.signInWithOtp({
         email: trimmed,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+          emailRedirectTo: `${origin}/auth/callback`,
         },
       });
       if (sendError) {

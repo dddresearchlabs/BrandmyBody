@@ -1,35 +1,15 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { createRouteHandlerClient } from "@/lib/supabase/route-client";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(new URL("/", request.url));
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) {
-    return response;
+  try {
+    const supabase = createRouteHandlerClient(request, response);
+    await supabase.auth.signOut();
+  } catch {
+    // Missing env: still send the user home.
   }
-
-  const cookieStore = await cookies();
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          try {
-            cookieStore.set(name, value, options);
-          } catch {
-            // Route handler may not persist cookies() writes; copy onto the redirect.
-          }
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-  await supabase.auth.signOut();
   return response;
 }

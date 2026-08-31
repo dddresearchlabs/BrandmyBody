@@ -13,7 +13,9 @@ Notable changes to Brand my Body, grouped by the date they first landed.
 - Anti-snipe: a paid bid in the last 10 minutes of `ends_at` extends close by 10 minutes on the home auction and marketplace listings.
 - Anti-snipe uses Stripe charge time (not Checkout session create time), so opening Checkout before the last 10 minutes and paying inside that window still extends.
 - A bid paid after close is not made live and does not reopen or extend the auction. The just-paid bid is not refunded.
+- `/logout` copies cleared auth cookies onto the redirect so the session actually ends.
 - `/list` optional photo uploads to public `listing-photos`; `photo_url` shows on `/browse` and `/b/[id]`. Bid logos upload to public `logos` after paid Checkout and draw on the body silhouette. SQL: `supabase/listing-photos.sql`.
+- `/auth/callback` exchanges the magic-link `code` for a session and sets cookies on the redirect, so the user is signed in after the link. PKCE needs the same browser. Failures show on `/login`.
 
 ## 2026-08-30
 

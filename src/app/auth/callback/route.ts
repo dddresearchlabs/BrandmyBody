@@ -1,24 +1,63 @@
-import { createUserClient } from "@/lib/supabase/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { safeNextPath } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { publicError } from "@/lib/public-error";
+import {
+  createRouteHandlerClient,
+  requestOrigin,
+} from "@/lib/supabase/route-client";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const next = safeNextPath(requestUrl.searchParams.get("next"), "/account");
+const NEXT_COOKIE = "bmb-next";
 
-  if (code) {
-    const supabase = await createUserClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(new URL(next, request.url));
-    }
+function authMessage(err: unknown) {
+  const message = publicError(err, "Could not finish sign in. Try again.");
+  if (/code verifier|pkce|verifier should be non-empty/i.test(message)) {
+    return "Open the login link in the same browser you used to request it.";
   }
+  return message;
+}
 
-  const login = new URL("/login", request.url);
-  login.searchParams.set("error", "auth");
+function redirectToLogin(origin: string, next: string, message: string) {
+  const login = new URL("/login", origin);
+  login.searchParams.set("error", message.slice(0, 180));
   login.searchParams.set("next", next);
   return NextResponse.redirect(login);
+}
+
+export async function GET(request: NextRequest) {
+  const origin = requestOrigin(request);
+  const code = request.nextUrl.searchParams.get("code");
+  const next = safeNextPath(
+    request.nextUrl.searchParams.get("next") ??
+      request.cookies.get(NEXT_COOKIE)?.value,
+    "/account",
+  );
+
+  if (!code) {
+    const description =
+      request.nextUrl.searchParams.get("error_description") ??
+      request.nextUrl.searchParams.get("error");
+    return redirectToLogin(
+      origin,
+      next,
+      description
+        ? publicError(description, "Could not finish sign in. Try again.")
+        : "Could not finish sign in. Try again.",
+    );
+  }
+
+  const success = NextResponse.redirect(new URL(next, origin));
+  success.cookies.set(NEXT_COOKIE, "", { path: "/", maxAge: 0 });
+
+  try {
+    const supabase = createRouteHandlerClient(request, success);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      return redirectToLogin(origin, next, authMessage(error));
+    }
+    return success;
+  } catch (err) {
+    return redirectToLogin(origin, next, authMessage(err));
+  }
 }
