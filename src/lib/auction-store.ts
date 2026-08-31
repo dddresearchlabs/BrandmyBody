@@ -163,3 +163,18 @@ export function recordHomeBid(
     endsAt: state.endsAt,
   };
 }
+
+export function setHomeBidLogo(sessionId: string, logoUrl: string) {
+  const url = logoUrl.trim();
+  if (!url.startsWith("http")) return false;
+  const state = load();
+  let found = false;
+  for (const spot of state.spots) {
+    if (spot.current?.stripeSessionId === sessionId) {
+      spot.current = { ...spot.current, logoUrl: url };
+      found = true;
+    }
+  }
+  if (found) save(state);
+  return found;
+}

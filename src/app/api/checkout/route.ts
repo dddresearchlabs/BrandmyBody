@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return Response.json({ url: session.url });
+    return Response.json({ url: session.url, sessionId: session.id });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Checkout failed";
     const safe =

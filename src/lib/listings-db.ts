@@ -25,7 +25,11 @@ type ListingRow = {
   ends_at: string;
   entire_body: boolean;
   status: string;
+  photo_url: string | null;
 };
+
+const LISTING_SELECT =
+  "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status, photo_url";
 
 type ListingSpotRow = {
   id: string;
@@ -75,6 +79,12 @@ function toLiveBid(row: ListingBidRow): LiveBid | null {
   });
 }
 
+function asPublicUrl(value: unknown) {
+  if (typeof value !== "string") return null;
+  const url = value.trim();
+  return url.startsWith("http") ? url : null;
+}
+
 function assemble(
   listing: ListingRow,
   spots: ListingSpotRow[],
@@ -115,6 +125,7 @@ function assemble(
     durationDays,
     endsAt,
     createdAt: endsAt,
+    photoUrl: asPublicUrl(listing.photo_url),
   };
 }
 
@@ -175,7 +186,7 @@ export async function fetchListings(status?: "live") {
   let query = supabase
     .from("listings")
     .select(
-      "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status",
+      LISTING_SELECT,
     )
     .order("ends_at", { ascending: true });
   if (status) query = query.eq("status", status);
@@ -202,7 +213,7 @@ export async function fetchListingsByOwner(ownerId: string) {
   const { data, error } = await supabase
     .from("listings")
     .select(
-      "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status",
+      LISTING_SELECT,
     )
     .eq("owner_id", ownerId)
     .order("ends_at", { ascending: true });
@@ -230,7 +241,7 @@ export async function fetchListing(id: string) {
   const { data, error } = await supabase
     .from("listings")
     .select(
-      "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status",
+      LISTING_SELECT,
     )
     .eq("id", id)
     .maybeSingle();
@@ -307,7 +318,7 @@ export async function insertListing(ownerId: string, input: CreateListingInput) 
       owner_id: ownerId,
     })
     .select(
-      "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status",
+      LISTING_SELECT,
     )
     .single();
   if (listingRes.error || !listingRes.data) {
@@ -337,6 +348,29 @@ export async function insertListing(ownerId: string, input: CreateListingInput) 
     throw new Error("Could not load listing");
   }
   return created;
+}
+
+export async function setListingPhotoUrl(
+  listingId: string,
+  ownerId: string,
+  photoUrl: string,
+) {
+  const url = asPublicUrl(photoUrl);
+  if (!url) {
+    throw new Error("Could not save listing photo");
+  }
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .update({ photo_url: url })
+    .eq("id", listingId)
+    .eq("owner_id", ownerId)
+    .select("id")
+    .maybeSingle();
+  if (error) fail(error, "Could not save listing photo");
+  if (!data) {
+    throw new Error("Unknown listing");
+  }
 }
 
 const BID_SELECT =
@@ -400,6 +434,15 @@ export async function recordPaidListingBid(input: {
   const paidAt = input.paidAt ?? Date.now();
   const already = Boolean(existingRes.data);
   const existing = (existingRes.data as ListingBidRow | null) ?? null;
+
+  if (existing && input.logoUrl) {
+    const logoRes = await supabase
+      .from("listing_bids")
+      .update({ logo_url: input.logoUrl })
+      .eq("id", existing.id);
+    if (logoRes.error) fail(logoRes.error, "Could not save logo");
+    existing.logo_url = input.logoUrl;
+  }
 
   if (isListingClosed(listing.endsAt, paidAt)) {
     if (!existing) {

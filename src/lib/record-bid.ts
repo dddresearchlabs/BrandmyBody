@@ -5,6 +5,7 @@ import {
   getHomeAuction,
   hasHomeSession,
   recordHomeBid,
+  setHomeBidLogo,
 } from "@/lib/auction-store";
 import {
   markListingBidRefunded,
@@ -122,6 +123,7 @@ async function refundPrevious(input: {
 
 export async function recordPaidCheckout(
   session: Stripe.Checkout.Session,
+  options?: { logoUrl?: string },
 ): Promise<RecordedCheckout> {
   if (session.livemode) {
     return emptyResult({ error: "Stripe test mode only" });
@@ -138,11 +140,17 @@ export async function recordPaidCheckout(
   }
 
   const { listingId, spotId, spotName, bid, email, href } = parsed;
+  if (options?.logoUrl) {
+    bid.logoUrl = options.logoUrl;
+  }
   const { paidAt, stable: paidAtStable } = paidAtFromSession(session);
 
   try {
     if (listingId === "home") {
       if (hasHomeSession(session.id)) {
+        if (bid.logoUrl) {
+          setHomeBidLogo(session.id, bid.logoUrl);
+        }
         const current =
           getHomeAuction().spots.find((spot) => spot.spotId === spotId)
             ?.current ?? bid;
@@ -237,7 +245,10 @@ export async function recordPaidCheckout(
   }
 }
 
-export async function completePaidSession(sessionId: string) {
+export async function completePaidSession(
+  sessionId: string,
+  options?: { logoUrl?: string },
+) {
   if (!sessionId.startsWith("cs_test_")) {
     return emptyResult({
       error: sessionId
@@ -247,5 +258,5 @@ export async function completePaidSession(sessionId: string) {
   }
 
   const session = await retrieveTestCheckoutSession(sessionId);
-  return recordPaidCheckout(session);
+  return recordPaidCheckout(session, options);
 }

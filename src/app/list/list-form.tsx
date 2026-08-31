@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { DURATION_OPTIONS, type DurationDays } from "@/lib/listings";
 import { HARDCODED_SPOTS } from "@/lib/spots";
+import { assertImageFile } from "@/lib/image-file";
 
 const fieldClass =
   "mt-1 w-full rounded-md border border-line bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-accent";
@@ -14,6 +15,7 @@ export function ListForm() {
   const [durationDays, setDurationDays] = useState<DurationDays>(7);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [savedHref, setSavedHref] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const selectedIds = useMemo(
@@ -49,6 +51,16 @@ export function ListForm() {
           }))
         : [];
 
+    const photo = form.get("photo");
+    if (photo instanceof File && photo.size > 0) {
+      try {
+        assertImageFile(photo);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not upload photo");
+        return;
+      }
+    }
+
     setError(null);
     setSubmitting(true);
 
@@ -78,6 +90,28 @@ export function ListForm() {
         setSubmitting(false);
         return;
       }
+
+      if (photo instanceof File && photo.size > 0) {
+        const upload = new FormData();
+        upload.set("listingId", data.listing.id);
+        upload.set("file", photo);
+        const photoRes = await fetch("/api/uploads/listing-photo", {
+          method: "POST",
+          body: upload,
+        });
+        const photoData = (await photoRes.json()) as { error?: string };
+        if (!photoRes.ok) {
+          setSavedHref(`/b/${data.listing.id}`);
+          setError(
+            photoData.error
+              ? `Listing saved. Photo could not be uploaded: ${photoData.error}`
+              : "Listing saved. Photo could not be uploaded.",
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
+
       router.push(`/b/${data.listing.id}`);
     } catch {
       setError("Could not save listing");
@@ -95,6 +129,17 @@ export function ListForm() {
           required
           autoComplete="nickname"
           className={fieldClass}
+        />
+      </label>
+
+      <label className="text-sm">
+        Photo
+        <span className="text-muted"> (optional)</span>
+        <input
+          name="photo"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className={`${fieldClass} file:mr-3 file:rounded file:border-0 file:bg-line file:px-2 file:py-1 file:text-foreground`}
         />
       </label>
 
@@ -225,6 +270,11 @@ export function ListForm() {
       )}
 
       {error ? <p className="text-sm text-accent">{error}</p> : null}
+      {savedHref ? (
+        <a href={savedHref} className="text-sm text-accent hover:underline">
+          View listing
+        </a>
+      ) : null}
 
       <button
         type="submit"

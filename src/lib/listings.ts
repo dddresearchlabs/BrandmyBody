@@ -44,6 +44,7 @@ export type Listing = {
   durationDays: DurationDays;
   endsAt: string;
   createdAt: string;
+  photoUrl?: string | null;
   refundError?: string | null;
 };
 

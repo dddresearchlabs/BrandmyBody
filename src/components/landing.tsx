@@ -10,6 +10,8 @@ import {
   socialHref,
   type Listing,
 } from "@/lib/listings";
+import { assertImageFile } from "@/lib/image-file";
+import { stashBidLogo } from "@/lib/bid-logo-stash";
 
 const NAV = [
   { href: "#auction", label: "Live auction" },
@@ -214,6 +216,13 @@ export function Landing({ listing }: { listing?: Listing }) {
             <p className="mt-3 font-serif text-2xl text-muted">
               {listing.displayName}
             </p>
+          ) : null}
+          {listing?.photoUrl ? (
+            <img
+              src={listing.photoUrl}
+              alt=""
+              className="mt-8 h-48 w-48 rounded-xl object-cover"
+            />
           ) : null}
           <p className="mt-6 max-w-xl text-lg leading-8 text-muted">
             Brands bid on logo spots. Winning logos are printed as ink tattoos
@@ -515,6 +524,16 @@ function GetSpotModal({
       return;
     }
 
+    const logo = form.get("logo");
+    if (logo instanceof File && logo.size > 0) {
+      try {
+        assertImageFile(logo);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not upload logo");
+        return;
+      }
+    }
+
     setError(null);
     setSubmitting(true);
 
@@ -531,11 +550,29 @@ function GetSpotModal({
           buyerSocials,
         }),
       });
-      const data = (await res.json()) as { url?: string; error?: string };
+      const data = (await res.json()) as {
+        url?: string;
+        sessionId?: string;
+        error?: string;
+      };
       if (!res.ok || !data.url) {
         setError(data.error ?? "Checkout failed");
         setSubmitting(false);
         return;
+      }
+      if (logo instanceof File && logo.size > 0) {
+        if (!data.sessionId) {
+          setError("Checkout started but the logo could not be saved");
+          setSubmitting(false);
+          return;
+        }
+        try {
+          await stashBidLogo(data.sessionId, logo);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not save logo");
+          setSubmitting(false);
+          return;
+        }
       }
       window.location.assign(data.url);
     } catch {

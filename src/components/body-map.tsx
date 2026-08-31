@@ -90,16 +90,27 @@ function SpotButton({
         }}
       />
       {logoUrl ? (
-        <image
-          href={logoUrl}
-          x={pos.x - pos.r}
-          y={pos.y - pos.r}
-          width={pos.r * 2}
-          height={pos.r * 2}
-          preserveAspectRatio="xMidYMid slice"
-          clipPath={`url(#${clipId})`}
-          className="pointer-events-none"
-        />
+        <>
+          <circle
+            cx={pos.x}
+            cy={pos.y}
+            r={pos.r + 2}
+            fill="none"
+            stroke={selected ? "#e23d2a" : "#f3efe7"}
+            strokeWidth={selected ? 2 : 1}
+            className="pointer-events-none"
+          />
+          <image
+            href={logoUrl}
+            x={pos.x - pos.r}
+            y={pos.y - pos.r}
+            width={pos.r * 2}
+            height={pos.r * 2}
+            preserveAspectRatio="xMidYMid slice"
+            clipPath={`url(#${clipId})`}
+            className="pointer-events-none"
+          />
+        </>
       ) : (
         <>
           <circle

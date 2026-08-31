@@ -111,6 +111,13 @@ export function BrowseGrid({ listings }: { listings: Listing[] }) {
                 className="absolute inset-0"
                 aria-label={listing.displayName}
               />
+              {listing.photoUrl ? (
+                <img
+                  src={listing.photoUrl}
+                  alt=""
+                  className="relative mb-4 h-40 w-full rounded-lg object-cover"
+                />
+              ) : null}
               <h2 className="relative font-serif text-2xl">{listing.displayName}</h2>
               <div className="relative z-10 mt-3">
                 <ListingSocials listing={listing} />
