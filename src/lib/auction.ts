@@ -5,7 +5,43 @@ export type LiveBid = {
   xHandle: string | null;
   logoUrl: string | null;
   status: string;
+  stripeSessionId?: string;
 };
+
+/** Min next bid beats current by $10. */
+export const BID_INCREMENT_CENTS = 1000;
+
+export function minNextCents(
+  startCents: number,
+  current: LiveBid | null,
+  incrementCents = BID_INCREMENT_CENTS,
+) {
+  if (!current || current.status !== "live") return startCents;
+  return current.amountCents + incrementCents;
+}
+
+export function asLiveBid(value: unknown): LiveBid | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const amountCents = Math.round(Number(row.amountCents));
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return null;
+  if (row.status !== "live") return null;
+  const text = (key: string) => {
+    const raw = row[key];
+    if (typeof raw !== "string") return null;
+    const trimmed = raw.trim();
+    return trimmed ? trimmed : null;
+  };
+  return {
+    amountCents,
+    brandName: text("brandName"),
+    website: text("website"),
+    xHandle: text("xHandle"),
+    logoUrl: text("logoUrl"),
+    status: "live",
+    stripeSessionId: text("stripeSessionId") ?? undefined,
+  };
+}
 
 export type Spot = {
   spotId: number;

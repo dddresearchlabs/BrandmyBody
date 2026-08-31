@@ -1,5 +1,11 @@
 import { HARDCODED_SPOTS } from "@/lib/spots";
-import type { Auction, Spot } from "@/lib/auction";
+import {
+  asLiveBid,
+  minNextCents,
+  type Auction,
+  type LiveBid,
+  type Spot,
+} from "@/lib/auction";
 
 export type ListingScope = "entire" | "selected";
 
@@ -13,6 +19,7 @@ export type ListingSocials = {
 export type ListingSpot = {
   spotId: number;
   startCents: number;
+  current?: LiveBid | null;
 };
 
 export type DurationDays = 1 | 3 | 7 | 14;
@@ -37,6 +44,7 @@ export type Listing = {
   durationDays: DurationDays;
   endsAt: string;
   createdAt: string;
+  processedSessionIds?: string[];
 };
 
 export type CreateListingInput = {
@@ -61,6 +69,7 @@ export function listingToAuction(listing: Listing): Auction {
   const spots: Spot[] = listing.spots.flatMap((row) => {
     const meta = catalog.get(row.spotId);
     if (!meta) return [];
+    const current = asLiveBid(row.current);
     return [
       {
         spotId: meta.spotId,
@@ -68,8 +77,8 @@ export function listingToAuction(listing: Listing): Auction {
         view: meta.view,
         sizeLabel: meta.sizeLabel,
         startCents: row.startCents,
-        current: null,
-        minNextCents: row.startCents,
+        current,
+        minNextCents: minNextCents(row.startCents, current),
       },
     ];
   });
@@ -78,8 +87,11 @@ export function listingToAuction(listing: Listing): Auction {
     endsAt: listing.endsAt,
     goalCents: spots.reduce((sum, spot) => sum + spot.startCents, 0),
     closed: isListingClosed(listing.endsAt),
-    raisedCents: 0,
-    takenCount: 0,
+    raisedCents: spots.reduce(
+      (sum, spot) => sum + (spot.current?.amountCents ?? 0),
+      0,
+    ),
+    takenCount: spots.filter((spot) => spot.current).length,
     spots,
   };
 }
@@ -115,7 +127,37 @@ export function normalizeListing(raw: Listing): Listing {
   const endsAt =
     raw.endsAt ??
     new Date(new Date(createdAt).getTime() + durationDays * DAY_MS).toISOString();
-  return { ...raw, durationDays, endsAt, createdAt };
+  const spots = (raw.spots ?? []).map((spot) => ({
+    ...spot,
+    current: asLiveBid(spot.current),
+  }));
+  const processedSessionIds = Array.isArray(raw.processedSessionIds)
+    ? raw.processedSessionIds.filter((id) => typeof id === "string")
+    : [];
+  return { ...raw, durationDays, endsAt, createdAt, spots, processedSessionIds };
+}
+
+export function emptySocials(): ListingSocials {
+  return { x: "", instagram: "", tiktok: "", website: "" };
+}
+
+export function parseSocials(value: unknown): ListingSocials {
+  const row =
+    value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const field = (key: keyof ListingSocials) => {
+    const raw = row[key];
+    return typeof raw === "string" ? raw.trim().slice(0, 200) : "";
+  };
+  return {
+    x: field("x"),
+    instagram: field("instagram"),
+    tiktok: field("tiktok"),
+    website: field("website"),
+  };
+}
+
+export function socialsToMeta(socials: ListingSocials) {
+  return JSON.stringify(socials).slice(0, 500);
 }
 
 export function socialHref(kind: keyof ListingSocials, value: string) {

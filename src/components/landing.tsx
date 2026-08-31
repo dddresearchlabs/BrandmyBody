@@ -22,7 +22,7 @@ const STEPS = [
   {
     n: "01",
     title: "Pick a spot and bid",
-    body: "Choose a logo placement. Your bid must beat the current price by $20. A 20% deposit is due now, $5,000 minimum. Refunded if you are outbid or refused.",
+    body: "Choose a logo placement. Your bid must beat the current price by $10. A 20% deposit is due now, $5,000 minimum. Refunded if you are outbid or refused.",
   },
   {
     n: "02",
@@ -43,7 +43,7 @@ const FAQS = [
   },
   {
     q: "How do bids work?",
-    a: "A bid must beat the current price by $20. Bids are invisible until the deposit is paid and the logo is approved. A bid in the last 10 minutes extends close by 10 minutes.",
+    a: "A bid must beat the current price by $10. Bids are invisible until the deposit is paid and the logo is approved. A bid in the last 10 minutes extends close by 10 minutes.",
   },
   {
     q: "What is the deposit?",
@@ -100,7 +100,6 @@ function useCountdown(endsAt: string | null) {
 }
 
 export function Landing({ listing }: { listing?: Listing }) {
-  const checkoutEnabled = !listing;
   const [auction, setAuction] = useState<Auction | null>(() =>
     listing ? listingToAuction(listing) : null,
   );
@@ -296,6 +295,9 @@ export function Landing({ listing }: { listing?: Listing }) {
               <p className="mt-8 text-sm text-muted">
                 Selected: {selected.name} · {selected.sizeLabel} · from{" "}
                 {formatUsd(selected.startCents)}
+                {selected.current?.brandName
+                  ? ` · ${selected.current.brandName} at ${formatUsd(selected.current.amountCents)}`
+                  : ""}
               </p>
             ) : null}
           </div>
@@ -305,7 +307,7 @@ export function Landing({ listing }: { listing?: Listing }) {
           <div className="mx-auto max-w-6xl px-5">
             <h2 className="font-serif text-4xl">Live auction</h2>
             <p className="mt-3 text-muted">
-              Bid must beat current by $20. Prices shown from start cents / 100.
+              Bid must beat current by $10. Prices shown from start cents / 100.
             </p>
             <div className="mt-8 overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -345,13 +347,16 @@ export function Landing({ listing }: { listing?: Listing }) {
                       <td className="py-4 pr-4 text-muted">{spot.sizeLabel}</td>
                       <td className="py-4 pr-4">{formatUsd(spot.startCents)}</td>
                       <td className="py-4 pr-4">
-                        {spot.current
-                          ? `${formatUsd(spot.current.amountCents)}${
-                              spot.current.brandName
-                                ? ` · ${spot.current.brandName}`
-                                : ""
-                            }`
-                          : "—"}
+                        {spot.current ? (
+                          <div>
+                            <p>{formatUsd(spot.current.amountCents)}</p>
+                            {spot.current.brandName ? (
+                              <p className="text-muted">{spot.current.brandName}</p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="py-4 pr-4">
                         {formatUsd(spot.minNextCents)}
@@ -424,7 +429,7 @@ export function Landing({ listing }: { listing?: Listing }) {
           <GetSpotModal
             titleId={titleId}
             spot={selected ?? auction?.spots[0] ?? null}
-            checkoutEnabled={checkoutEnabled}
+            listing={listing}
             onClose={() => setModalOpen(false)}
           />
         </dialog>
@@ -473,12 +478,12 @@ function ListingSocials({ socials }: { socials: Listing["socials"] }) {
 function GetSpotModal({
   titleId,
   spot,
-  checkoutEnabled,
+  listing,
   onClose,
 }: {
   titleId: string;
   spot: Spot | null;
-  checkoutEnabled: boolean;
+  listing?: Listing;
   onClose: () => void;
 }) {
   const minDollars = spot ? dollars(spot.minNextCents) : 0;
@@ -493,6 +498,12 @@ function GetSpotModal({
     const bidDollars = Number(form.get("amount"));
     const brandName = String(form.get("brandName") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
+    const buyerSocials = {
+      x: String(form.get("x") ?? "").trim(),
+      instagram: String(form.get("instagram") ?? "").trim(),
+      tiktok: String(form.get("tiktok") ?? "").trim(),
+      website: String(form.get("website") ?? "").trim(),
+    };
 
     if (!Number.isFinite(bidDollars) || bidDollars < minDollars) {
       setError(`Bid must be at least ${formatUsd(spot.minNextCents)}`);
@@ -510,21 +521,17 @@ function GetSpotModal({
     setError(null);
     setSubmitting(true);
 
-    if (!checkoutEnabled) {
-      setError("Checkout stays on the original demo body for now.");
-      setSubmitting(false);
-      return;
-    }
-
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          listingId: listing?.id ?? "home",
           spotId: spot.spotId,
           bidCents: Math.round(bidDollars * 100),
           brandName,
           email,
+          buyerSocials,
         }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
@@ -591,8 +598,16 @@ function GetSpotModal({
           <input name="website" type="url" placeholder="https://" className={fieldClass} />
         </label>
         <label className="text-sm">
-          X handle
-          <input name="xHandle" type="text" placeholder="@brand" className={fieldClass} />
+          X
+          <input name="x" type="text" placeholder="@brand" className={fieldClass} />
+        </label>
+        <label className="text-sm">
+          Instagram
+          <input name="instagram" type="text" placeholder="@brand" className={fieldClass} />
+        </label>
+        <label className="text-sm">
+          TikTok
+          <input name="tiktok" type="text" placeholder="@brand" className={fieldClass} />
         </label>
         <label className="text-sm">
           Email
@@ -620,11 +635,7 @@ function GetSpotModal({
             disabled={submitting || !spot}
             className="rounded-full bg-accent px-4 py-2 text-sm text-white hover:brightness-110 disabled:opacity-50"
           >
-            {submitting
-              ? "Redirecting…"
-              : checkoutEnabled
-                ? "Get a spot"
-                : "Get a spot"}
+            {submitting ? "Redirecting…" : "Get a spot"}
           </button>
           <button
             type="button"

@@ -5,7 +5,7 @@ Site name: **Brand my Body**. Never call it Brand My Shirt, Brand My Mac, or Bra
 ## Promise
 Brands bid on logo spots on my body. Winning logos are printed as ink tattoo and shown in person and in photos. A spot is paid placement, not an endorsement, and not a promise of impressions. There will be a video of the tattoo being placed
 ## Rules
-- Bid must beat current by $20
+- Bid must beat current by $10 (min next = current + $10 / 1000 cents)
 - 20% deposit, min $5,000, refunded if outbid or refused
 - Bid invisible until paid + logo approved
 - Bid in last 10 minutes extends close by 10 minutes
@@ -38,10 +38,10 @@ People list their own bodies. The original single-body demo stays at `/`. Mock m
 - Selected parts use the 10 SPEC spots
 - Entire body: one starting price on all 10 spots
 - `/browse` — grid of all listings (name, socials, spot count, min starting price, time left). Filter chips: 1 day / 3 days / 1 week / 2 weeks / all. Cards link to `/b/[id]`. Empty state if none
-- `/b/[id]` — public listing page cloned from the demo landing, with that person's spots, prices, socials, and time left from `endsAt`. After `endsAt`, listing is closed and Get a spot is hidden
+- `/b/[id]` — public listing page cloned from the demo landing, with that person's spots, prices, socials, and time left from `endsAt`. After `endsAt`, listing is closed and Get a spot is disabled/hidden
 - `/account` — all listings (mock; no auth yet), with time left from `endsAt` and closed after end
 Store: mock `src/lib/listings.ts` plus `src/lib/listings-store.ts` (json at `data/listings.json`). No Supabase yet.
-Checkout (Stripe test) stays on `/` only. No Connect yet.
+Checkout: Stripe test mode on `/` and `/b/[id]` Get a spot. Same 20% deposit. `success_url` is `/success?session_id={CHECKOUT_SESSION_ID}`. `/success` retrieves the test session, and if `payment_status` is `paid`, writes a live bid (`amountCents`, `brandName`, `website`, `xHandle`, `status: live`) onto that spot. Home auction: mock `src/lib/auction-store.ts` (`data/auction.json`). Marketplace: listings store. Unpaid sessions do not write a bid. Session metadata: `listingId` (`home` or listing id), `spotId`, `durationDays`, `listerSocials`, `buyerSocials`, `bidCents`, `brandName`. Bid table Current shows amount and winning brand. Min next = current + $10. Body spots show brand name (or logo if `logoUrl` is set). Refresh keeps the bid until the mock store is cleared / server data is reset. No Connect, no 10% split.
 ## Stack
 Next.js App Router, TypeScript, Tailwind
 Supabase (Postgres + Storage bucket `logos`)

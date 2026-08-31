@@ -38,6 +38,12 @@ function Figure({ back }: { back?: boolean }) {
   );
 }
 
+function truncate(value: string, max = 10) {
+  const trimmed = value.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1)}…`;
+}
+
 function SpotButton({
   spot,
   selected,
@@ -49,12 +55,23 @@ function SpotButton({
 }) {
   const pos = POSITIONS[spot.spotId];
   if (!pos) return null;
+  const brand = spot.current?.brandName?.trim() || null;
+  const logoUrl = spot.current?.logoUrl?.trim() || null;
+  const priceLabel = spot.current
+    ? `${formatUsd(spot.current.amountCents)}${brand ? ` · ${brand}` : ""}`
+    : `from ${formatUsd(spot.startCents)}`;
+  const clipId = `spot-logo-${spot.spotId}`;
 
   return (
     <g>
       <title>
-        {spot.name} · from {formatUsd(spot.startCents)}
+        {spot.name} · {priceLabel}
       </title>
+      {logoUrl ? (
+        <clipPath id={clipId}>
+          <circle cx={pos.x} cy={pos.y} r={pos.r} />
+        </clipPath>
+      ) : null}
       <circle
         cx={pos.x}
         cy={pos.y}
@@ -62,7 +79,7 @@ function SpotButton({
         fill="transparent"
         role="button"
         tabIndex={0}
-        aria-label={`${spot.name}, from ${formatUsd(spot.startCents)}`}
+        aria-label={`${spot.name}, ${priceLabel}`}
         className="cursor-pointer"
         onClick={() => onSelect(spot.spotId)}
         onKeyDown={(event) => {
@@ -72,27 +89,55 @@ function SpotButton({
           }
         }}
       />
-      <circle
-        cx={pos.x}
-        cy={pos.y}
-        r={pos.r}
-        fill={selected ? "#e23d2a" : "#f3efe7"}
-        stroke={selected ? "#f3efe7" : "#e23d2a"}
-        strokeWidth={2}
-        className="pointer-events-none"
-      />
-      <text
-        x={pos.x}
-        y={pos.y + 1}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontSize="11"
-        fontFamily="ui-sans-serif, system-ui, sans-serif"
-        fill={selected ? "#ffffff" : "#0b0b0b"}
-        className="pointer-events-none"
-      >
-        {spot.spotId}
-      </text>
+      {logoUrl ? (
+        <image
+          href={logoUrl}
+          x={pos.x - pos.r}
+          y={pos.y - pos.r}
+          width={pos.r * 2}
+          height={pos.r * 2}
+          preserveAspectRatio="xMidYMid slice"
+          clipPath={`url(#${clipId})`}
+          className="pointer-events-none"
+        />
+      ) : (
+        <>
+          <circle
+            cx={pos.x}
+            cy={pos.y}
+            r={pos.r}
+            fill={selected ? "#e23d2a" : "#f3efe7"}
+            stroke={selected ? "#f3efe7" : "#e23d2a"}
+            strokeWidth={2}
+            className="pointer-events-none"
+          />
+          <text
+            x={pos.x}
+            y={pos.y + 1}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="11"
+            fontFamily="ui-sans-serif, system-ui, sans-serif"
+            fill={selected ? "#ffffff" : "#0b0b0b"}
+            className="pointer-events-none"
+          >
+            {spot.spotId}
+          </text>
+        </>
+      )}
+      {brand ? (
+        <text
+          x={pos.x}
+          y={pos.y + pos.r + 11}
+          textAnchor="middle"
+          fontSize="8"
+          fontFamily="ui-sans-serif, system-ui, sans-serif"
+          fill="#e23d2a"
+          className="pointer-events-none"
+        >
+          {truncate(brand)}
+        </text>
+      ) : null}
     </g>
   );
 }

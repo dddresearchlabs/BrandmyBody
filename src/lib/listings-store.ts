@@ -11,6 +11,7 @@ import {
   type ListingSocials,
   type ListingSpot,
 } from "@/lib/listings";
+import type { LiveBid } from "@/lib/auction";
 
 const DATA_PATH = path.join(process.cwd(), "data", "listings.json");
 
@@ -93,10 +94,43 @@ export function createListing(input: CreateListingInput) {
     durationDays: input.durationDays,
     endsAt: new Date(now + input.durationDays * 24 * 60 * 60 * 1000).toISOString(),
     createdAt: new Date(now).toISOString(),
+    processedSessionIds: [],
   };
 
   const listings = load();
   listings.unshift(listing);
   save(listings);
   return listing;
+}
+
+export function hasListingSession(listingId: string, sessionId: string) {
+  const listing = getListing(listingId);
+  return Boolean(listing?.processedSessionIds?.includes(sessionId));
+}
+
+export function recordListingBid(
+  listingId: string,
+  sessionId: string,
+  spotId: number,
+  bid: LiveBid,
+) {
+  const listings = load();
+  const listing = listings.find((row) => row.id === listingId);
+  if (!listing) {
+    throw new Error("Unknown listing");
+  }
+  if (listing.processedSessionIds?.includes(sessionId)) {
+    return { already: true as const };
+  }
+  const spot = listing.spots.find((row) => row.spotId === spotId);
+  if (!spot) {
+    throw new Error("That spot is not on this listing");
+  }
+  spot.current = bid;
+  listing.processedSessionIds = [
+    ...(listing.processedSessionIds ?? []),
+    sessionId,
+  ];
+  save(listings);
+  return { already: false as const };
 }

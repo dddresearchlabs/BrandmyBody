@@ -1,3 +1,12 @@
+import { getListing } from "@/lib/listings-store";
+import { getHomeAuction } from "@/lib/auction-store";
+import { asLiveBid, minNextCents } from "@/lib/auction";
+import {
+  isListingClosed,
+  parseSocials,
+  socialsToMeta,
+  type Listing,
+} from "@/lib/listings";
 import { getStripe } from "@/lib/stripe";
 import { spotById } from "@/lib/spots";
 
@@ -17,6 +26,10 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function meta(value: string) {
+  return value.slice(0, 500);
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -25,19 +38,55 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const payload =
+    body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const listingId = asString(payload.listingId);
   const spotId = Number(payload.spotId);
   const bidCents = Math.round(Number(payload.bidCents));
   const brandName = asString(payload.brandName);
   const email = asString(payload.email);
+  const buyerSocials = parseSocials(payload.buyerSocials);
 
-  const spot = Number.isInteger(spotId) ? spotById(spotId) : null;
-  if (!spot) {
+  const catalog = Number.isInteger(spotId) ? spotById(spotId) : null;
+  if (!catalog) {
     return Response.json({ error: "Unknown spot" }, { status: 400 });
   }
 
-  const minNextCents = spot.startCents;
-  if (!Number.isFinite(bidCents) || bidCents < minNextCents) {
+  let listing: Listing | null = null;
+  let minNextAmount: number = catalog.startCents;
+  let returnPath = "/";
+  const isHome = !listingId || listingId === "home";
+
+  if (!isHome) {
+    listing = getListing(listingId);
+    if (!listing) {
+      return Response.json({ error: "Unknown listing" }, { status: 400 });
+    }
+    if (isListingClosed(listing.endsAt)) {
+      return Response.json({ error: "This listing is closed" }, { status: 400 });
+    }
+    const listingSpot = listing.spots.find((spot) => spot.spotId === spotId);
+    if (!listingSpot) {
+      return Response.json(
+        { error: "That spot is not on this listing" },
+        { status: 400 },
+      );
+    }
+    minNextAmount = minNextCents(
+      listingSpot.startCents,
+      asLiveBid(listingSpot.current),
+    );
+    returnPath = `/b/${listing.id}`;
+  } else {
+    const home = getHomeAuction();
+    if (home.closed) {
+      return Response.json({ error: "This listing is closed" }, { status: 400 });
+    }
+    const homeSpot = home.spots.find((spot) => spot.spotId === spotId);
+    minNextAmount = homeSpot?.minNextCents ?? catalog.startCents;
+  }
+
+  if (!Number.isFinite(bidCents) || bidCents < minNextAmount) {
     return Response.json(
       { error: "Bid must be at least the min next amount" },
       { status: 400 },
@@ -58,14 +107,27 @@ export async function POST(request: Request) {
   );
 
   const origin = siteOrigin(request);
+  const metadata: Record<string, string> = {
+    listingId: listing?.id ?? "home",
+    spotId: String(catalog.spotId),
+    bidCents: String(bidCents),
+    brandName: meta(brandName),
+    email: meta(email),
+    buyerSocials: socialsToMeta(buyerSocials),
+  };
+
+  if (listing) {
+    metadata.durationDays = String(listing.durationDays);
+    metadata.listerSocials = socialsToMeta(listing.socials);
+  }
 
   try {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: email,
-      success_url: `${origin}/?checkout=success`,
-      cancel_url: `${origin}/?checkout=cancel`,
+      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}${returnPath}?checkout=cancel`,
       line_items: [
         {
           quantity: 1,
@@ -73,19 +135,16 @@ export async function POST(request: Request) {
             currency: "usd",
             unit_amount: depositCents,
             product_data: {
-              name: `Brand my Body · ${spot.name} deposit`,
+              name: listing
+                ? `Brand my Body · ${listing.displayName} · ${catalog.name} deposit`
+                : `Brand my Body · ${catalog.name} deposit`,
               description:
                 "20% deposit for an ink tattoo logo placement. Paid placement, not an endorsement.",
             },
           },
         },
       ],
-      metadata: {
-        spotId: String(spot.spotId),
-        bidCents: String(bidCents),
-        brandName: brandName.slice(0, 500),
-        email: email.slice(0, 500),
-      },
+      metadata,
     });
 
     if (!session.url) {
