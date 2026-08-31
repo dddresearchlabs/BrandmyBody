@@ -18,13 +18,32 @@ export function paymentIntentIdFromSession(
   return asIntentId(session.payment_intent);
 }
 
+export function paidAtFromSession(session: Stripe.Checkout.Session): {
+  paidAt: number;
+  stable: boolean;
+} {
+  const pi = session.payment_intent;
+  if (pi && typeof pi === "object") {
+    const charge = pi.latest_charge;
+    if (
+      charge &&
+      typeof charge === "object" &&
+      typeof charge.created === "number" &&
+      charge.created > 0
+    ) {
+      return { paidAt: charge.created * 1000, stable: true };
+    }
+  }
+  return { paidAt: Date.now(), stable: false };
+}
+
 export async function retrieveTestCheckoutSession(sessionId: string) {
   if (!sessionId.startsWith("cs_test_")) {
     throw new Error("Stripe test mode only. This session was not recorded.");
   }
   const stripe = getStripe();
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
-    expand: ["payment_intent"],
+    expand: ["payment_intent", "payment_intent.latest_charge"],
   });
   if (session.livemode) {
     throw new Error("Stripe test mode only");

@@ -14,6 +14,7 @@ import {
 import { parseSocials } from "@/lib/listings";
 import { publicError } from "@/lib/public-error";
 import {
+  paidAtFromSession,
   paymentIntentIdFromSession,
   refundOutbidPayment,
   retrieveTestCheckoutSession,
@@ -137,7 +138,7 @@ export async function recordPaidCheckout(
   }
 
   const { listingId, spotId, spotName, bid, email, href } = parsed;
-  const paidAt = (session.created || 0) * 1000 || Date.now();
+  const { paidAt, stable: paidAtStable } = paidAtFromSession(session);
 
   try {
     if (listingId === "home") {
@@ -177,7 +178,9 @@ export async function recordPaidCheckout(
         href,
         error: recorded.accepted
           ? undefined
-          : "A higher bid is already live on this spot.",
+          : recorded.closed
+            ? "This listing is closed"
+            : "A higher bid is already live on this spot.",
       };
     }
 
@@ -193,6 +196,7 @@ export async function recordPaidCheckout(
       stripeSessionId: session.id,
       stripePaymentIntentId: paymentIntentId,
       paidAt,
+      paidAtStable,
     });
 
     const refundErrors: string[] = [];
@@ -218,7 +222,9 @@ export async function recordPaidCheckout(
       href,
       error: recorded.accepted
         ? undefined
-        : "A higher bid is already live on this spot.",
+        : recorded.closed
+          ? "This listing is closed"
+          : "A higher bid is already live on this spot.",
     };
   } catch (err) {
     return emptyResult({

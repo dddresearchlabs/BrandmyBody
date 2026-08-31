@@ -116,12 +116,25 @@ export function recordHomeBid(
       already: true as const,
       previous: null as LiveBid | null,
       accepted: true as const,
+      closed: false as const,
       endsAt: state.endsAt,
     };
   }
   const spot = state.spots.find((row) => row.spotId === spotId);
   if (!spot) {
     throw new Error("Unknown spot");
+  }
+  const closed = new Date(state.endsAt).getTime() <= paidAt;
+  if (closed) {
+    state.processedSessionIds.push(sessionId);
+    save(state);
+    return {
+      already: false as const,
+      previous: null as LiveBid | null,
+      accepted: false as const,
+      closed: true as const,
+      endsAt: state.endsAt,
+    };
   }
   const previous = asLiveBid(spot.current);
   const accepted = !previous || bid.amountCents > previous.amountCents;
@@ -132,6 +145,7 @@ export function recordHomeBid(
       already: false as const,
       previous: null as LiveBid | null,
       accepted: false as const,
+      closed: false as const,
       endsAt: state.endsAt,
     };
   }
@@ -145,6 +159,7 @@ export function recordHomeBid(
     already: false as const,
     previous,
     accepted: true as const,
+    closed: false as const,
     endsAt: state.endsAt,
   };
 }

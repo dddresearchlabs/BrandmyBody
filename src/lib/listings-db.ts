@@ -4,6 +4,7 @@ import { asLiveBid, type LiveBid } from "@/lib/auction";
 import {
   dollarsToCents,
   isDurationDays,
+  isListingClosed,
   type CreateListingInput,
   type Listing,
   type ListingSocials,
@@ -359,9 +360,11 @@ export async function recordPaidListingBid(input: {
   stripeSessionId: string;
   stripePaymentIntentId: string | null;
   paidAt?: number;
+  paidAtStable?: boolean;
 }): Promise<{
   already: boolean;
   accepted: boolean;
+  closed: boolean;
   previous: OutbidRefundTarget[];
   endsAt: string;
 }> {
@@ -394,7 +397,48 @@ export async function recordPaidListingBid(input: {
     .maybeSingle();
   if (existingRes.error) fail(existingRes.error, "Could not check existing bid");
 
-  let already = Boolean(existingRes.data);
+  const paidAt = input.paidAt ?? Date.now();
+  const already = Boolean(existingRes.data);
+  const existing = (existingRes.data as ListingBidRow | null) ?? null;
+
+  if (isListingClosed(listing.endsAt, paidAt)) {
+    if (!existing) {
+      const insertRes = await supabase
+        .from("listing_bids")
+        .insert({
+          listing_id: input.listingId,
+          spot_id: listingSpotId,
+          amount_cents: input.amountCents,
+          brand_name: input.brandName,
+          website: input.website,
+          x_handle: input.xHandle,
+          email: input.email,
+          logo_url: input.logoUrl,
+          status: "outbid",
+          stripe_session_id: input.stripeSessionId,
+          stripe_payment_intent_id: input.stripePaymentIntentId,
+        })
+        .select("id")
+        .single();
+      if (insertRes.error || !insertRes.data) {
+        fail(insertRes.error, "Could not save bid");
+      }
+    } else if (existing.status === "live") {
+      const demoteRes = await supabase
+        .from("listing_bids")
+        .update({ status: "outbid" })
+        .eq("id", existing.id);
+      if (demoteRes.error) fail(demoteRes.error, "Could not mark late bid");
+    }
+    return {
+      already,
+      accepted: false,
+      closed: true,
+      previous: [],
+      endsAt: listing.endsAt,
+    };
+  }
+
   if (!existingRes.data) {
     const insertRes = await supabase
       .from("listing_bids")
@@ -469,8 +513,8 @@ export async function recordPaidListingBid(input: {
     }));
 
   let endsAt = listing.endsAt;
-  if (accepted) {
-    const nextEnds = antiSnipeEndsAt(listing.endsAt, input.paidAt);
+  if (accepted && (!already || input.paidAtStable)) {
+    const nextEnds = antiSnipeEndsAt(listing.endsAt, paidAt);
     if (new Date(nextEnds).getTime() > new Date(listing.endsAt).getTime()) {
       const endsRes = await supabase
         .from("listings")
@@ -481,7 +525,7 @@ export async function recordPaidListingBid(input: {
     }
   }
 
-  return { already, accepted, previous, endsAt };
+  return { already, accepted, closed: false, previous, endsAt };
 }
 
 export async function markListingBidRefunded(
