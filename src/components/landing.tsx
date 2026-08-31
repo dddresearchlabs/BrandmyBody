@@ -2,8 +2,14 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { BodyMap } from "@/components/body-map";
+import { SiteNav } from "@/components/site-nav";
 import type { Auction, Spot } from "@/lib/auction";
 import { dollars, formatUsd } from "@/lib/auction";
+import {
+  listingToAuction,
+  socialHref,
+  type Listing,
+} from "@/lib/listings";
 
 const NAV = [
   { href: "#auction", label: "Live auction" },
@@ -58,9 +64,10 @@ const FAQS = [
 ] as const;
 
 function useCountdown(endsAt: string | null) {
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
+    setNow(Date.now());
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
@@ -69,8 +76,14 @@ function useCountdown(endsAt: string | null) {
     return { label: "—", closed: false };
   }
 
-  const remaining = Math.max(0, new Date(endsAt).getTime() - now);
+  const timestamp = now ?? Date.now();
+  const remaining = Math.max(0, new Date(endsAt).getTime() - timestamp);
   const closed = remaining <= 0;
+
+  if (now === null) {
+    return { label: closed ? "Closed" : "—", closed };
+  }
+
   const totalSeconds = Math.floor(remaining / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
@@ -86,15 +99,27 @@ function useCountdown(endsAt: string | null) {
   };
 }
 
-export function Landing() {
-  const [auction, setAuction] = useState<Auction | null>(null);
+export function Landing({ listing }: { listing?: Listing }) {
+  const checkoutEnabled = !listing;
+  const [auction, setAuction] = useState<Auction | null>(() =>
+    listing ? listingToAuction(listing) : null,
+  );
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(
+    listing?.spots[0]?.spotId ?? null,
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
   useEffect(() => {
+    if (listing) {
+      const next = listingToAuction(listing);
+      setAuction(next);
+      setSelectedId((current) => current ?? next.spots[0]?.spotId ?? null);
+      return;
+    }
+
     const ac = new AbortController();
 
     fetch("/api/auction", { signal: ac.signal })
@@ -116,7 +141,7 @@ export function Landing() {
       });
 
     return () => ac.abort();
-  }, []);
+  }, [listing]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -126,52 +151,74 @@ export function Landing() {
   }, [modalOpen]);
 
   const countdown = useCountdown(auction?.endsAt ?? null);
+  const listingClosed = Boolean(listing && countdown.closed);
   const selected = auction?.spots.find((spot) => spot.spotId === selectedId);
   const raisedPct =
     auction && auction.goalCents > 0
       ? Math.min(100, (auction.raisedCents / auction.goalCents) * 100)
       : 0;
 
+  useEffect(() => {
+    if (listingClosed) setModalOpen(false);
+  }, [listingClosed]);
+
   function openSpot(id: number) {
     setSelectedId(id);
+    if (listingClosed) return;
     setModalOpen(true);
   }
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-30 border-b border-line bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <a href="#top" className="text-sm tracking-wide">
-            Brand my Body
-          </a>
-          <nav
-            aria-label="Primary"
-            className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted"
-          >
+      <SiteNav
+        lead={
+          listing ? (
+            <p className="text-sm text-muted">{listing.displayName}</p>
+          ) : null
+        }
+        extra={
+          <>
+            {listing ? <ListingSocials socials={listing.socials} /> : null}
             {NAV.map((item) => (
               <a key={item.href} href={item.href} className="hover:text-foreground">
                 {item.label}
               </a>
             ))}
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="rounded-full bg-accent px-4 py-2 text-sm text-white hover:brightness-110"
-            >
-              Get a spot
-            </button>
-          </nav>
-        </div>
-      </header>
+            <a href="/account" className="hover:text-foreground">
+              Account
+            </a>
+            {listingClosed ? (
+              <span className="rounded-full border border-line px-4 py-2 text-sm">
+                Closed
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                className="rounded-full bg-accent px-4 py-2 text-sm text-white hover:brightness-110"
+              >
+                Get a spot
+              </button>
+            )}
+          </>
+        }
+      />
 
       <main id="top" className="flex-1">
         <section className="mx-auto max-w-6xl px-5 pb-20 pt-16 sm:pt-24">
           <p className="mb-5 text-xs tracking-[0.28em] uppercase text-accent">
-            Live auction · 10 spots
+            {listing
+              ? `${listing.scope === "entire" ? "Entire body" : "Selected spots"} · ${auction?.spots.length ?? 0} spots${listingClosed ? " · Closed" : ""}`
+              : "Live auction · 10 spots"}
           </p>
           <h1 className="font-serif max-w-4xl text-5xl leading-[1.05] tracking-tight sm:text-7xl">
             Your brand, on my body.
           </h1>
+          {listing ? (
+            <p className="mt-3 font-serif text-2xl text-muted">
+              {listing.displayName}
+            </p>
+          ) : null}
           <p className="mt-6 max-w-xl text-lg leading-8 text-muted">
             Brands bid on logo spots. Winning logos are printed as ink tattoos
             and shown in person and in photos. A spot is paid placement, not an
@@ -197,7 +244,7 @@ export function Landing() {
             </div>
             <div>
               <p className="text-xs tracking-[0.2em] uppercase text-muted">
-                Closes in
+                {listingClosed ? "Status" : "Closes in"}
               </p>
               <p className="mt-1 font-mono text-2xl tabular-nums">
                 {auction ? countdown.label : "—"}
@@ -310,13 +357,17 @@ export function Landing() {
                         {formatUsd(spot.minNextCents)}
                       </td>
                       <td className="py-4 text-right">
-                        <button
-                          type="button"
-                          className="text-accent hover:underline"
-                          onClick={() => openSpot(spot.spotId)}
-                        >
-                          Get a spot
-                        </button>
+                        {listingClosed ? (
+                          <span className="text-muted">Closed</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-accent hover:underline"
+                            onClick={() => openSpot(spot.spotId)}
+                          >
+                            Get a spot
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -363,18 +414,21 @@ export function Landing() {
         My X.
       </footer>
 
-      <dialog
-        ref={dialogRef}
-        aria-labelledby={titleId}
-        className="w-[min(92vw,32rem)] max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-background p-6 text-foreground backdrop:bg-black/70"
-        onClose={() => setModalOpen(false)}
-      >
-        <GetSpotModal
-          titleId={titleId}
-          spot={selected ?? auction?.spots[0] ?? null}
+      {!listingClosed ? (
+        <dialog
+          ref={dialogRef}
+          aria-labelledby={titleId}
+          className="w-[min(92vw,32rem)] max-h-[90vh] overflow-y-auto rounded-xl border border-line bg-background p-6 text-foreground backdrop:bg-black/70"
           onClose={() => setModalOpen(false)}
-        />
-      </dialog>
+        >
+          <GetSpotModal
+            titleId={titleId}
+            spot={selected ?? auction?.spots[0] ?? null}
+            checkoutEnabled={checkoutEnabled}
+            onClose={() => setModalOpen(false)}
+          />
+        </dialog>
+      ) : null}
     </div>
   );
 }
@@ -382,13 +436,49 @@ export function Landing() {
 const fieldClass =
   "mt-1 w-full rounded-md border border-line bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-accent";
 
+function ListingSocials({ socials }: { socials: Listing["socials"] }) {
+  const links = (
+    [
+      ["x", "X"],
+      ["instagram", "Instagram"],
+      ["tiktok", "TikTok"],
+      ["website", "Website"],
+    ] as const
+  )
+    .map(([key, label]) => {
+      const href = socialHref(key, socials[key]);
+      return href ? { href, label } : null;
+    })
+    .filter((link) => link !== null);
+
+  if (links.length === 0) return null;
+
+  return (
+    <>
+      {links.map((link) => (
+        <a
+          key={link.label}
+          href={link.href}
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-foreground"
+        >
+          {link.label}
+        </a>
+      ))}
+    </>
+  );
+}
+
 function GetSpotModal({
   titleId,
   spot,
+  checkoutEnabled,
   onClose,
 }: {
   titleId: string;
   spot: Spot | null;
+  checkoutEnabled: boolean;
   onClose: () => void;
 }) {
   const minDollars = spot ? dollars(spot.minNextCents) : 0;
@@ -419,6 +509,12 @@ function GetSpotModal({
 
     setError(null);
     setSubmitting(true);
+
+    if (!checkoutEnabled) {
+      setError("Checkout stays on the original demo body for now.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/checkout", {
@@ -524,7 +620,11 @@ function GetSpotModal({
             disabled={submitting || !spot}
             className="rounded-full bg-accent px-4 py-2 text-sm text-white hover:brightness-110 disabled:opacity-50"
           >
-            {submitting ? "Redirecting…" : "Get a spot"}
+            {submitting
+              ? "Redirecting…"
+              : checkoutEnabled
+                ? "Get a spot"
+                : "Get a spot"}
           </button>
           <button
             type="button"

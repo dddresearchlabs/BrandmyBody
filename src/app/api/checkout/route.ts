@@ -99,7 +99,8 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Checkout failed";
     const safe =
-      message === "Stripe test mode only" || message === "Missing STRIPE_SECRET_KEY"
+      message.startsWith("Stripe test mode only") ||
+      message === "Missing STRIPE_SECRET_KEY"
         ? message
         : "Checkout failed";
     return Response.json({ error: safe }, { status: 503 });

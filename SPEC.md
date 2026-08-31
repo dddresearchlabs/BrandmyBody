@@ -28,8 +28,20 @@ Brands bid on logo spots on my body. Winning logos are printed as ink tattoo and
 | 10 | Leg Area | S · 6 × 4 cm | $25,000 |
 ## Copy
 - Headline: Your brand, on my body.
-- Nav: Live auction / How it works / The body / FAQ / Get a spot
+- Nav: Browse / List a body / Live auction / How it works / The body / FAQ / Get a spot
 - CTA: Get a spot
+Site nav (Browse, List a body) on `/`, `/browse`, `/list`, `/account`, `/b/[id]`.
+## Marketplace
+People list their own bodies. The original single-body demo stays at `/`. Mock marketplace only. No Stripe Connect.
+- `/list` — create a listing: display name, socials (X, Instagram, TikTok, website), entire body or selected parts, starting prices, auction length
+- Auction length: 1 day / 3 days / 1 week / 2 weeks, stored as `durationDays`: 1 | 3 | 7 | 14. On create, `endsAt` = now + durationDays
+- Selected parts use the 10 SPEC spots
+- Entire body: one starting price on all 10 spots
+- `/browse` — grid of all listings (name, socials, spot count, min starting price, time left). Filter chips: 1 day / 3 days / 1 week / 2 weeks / all. Cards link to `/b/[id]`. Empty state if none
+- `/b/[id]` — public listing page cloned from the demo landing, with that person's spots, prices, socials, and time left from `endsAt`. After `endsAt`, listing is closed and Get a spot is hidden
+- `/account` — all listings (mock; no auth yet), with time left from `endsAt` and closed after end
+Store: mock `src/lib/listings.ts` plus `src/lib/listings-store.ts` (json at `data/listings.json`). No Supabase yet.
+Checkout (Stripe test) stays on `/` only. No Connect yet.
 ## Stack
 Next.js App Router, TypeScript, Tailwind
 Supabase (Postgres + Storage bucket `logos`)
