@@ -1,7 +1,8 @@
+import { headers } from "next/headers";
 import { SiteNav } from "@/components/site-nav";
 import { formatUsd } from "@/lib/auction";
-import { recordPaidCheckout } from "@/lib/record-bid";
-import { getStripe } from "@/lib/stripe";
+import { publicError } from "@/lib/public-error";
+import type { RecordedCheckout } from "@/lib/record-bid";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,38 @@ function sessionIdFrom(searchParams: { session_id?: string | string[] }) {
   return value?.trim() ?? "";
 }
 
+async function completeViaApi(sessionId: string): Promise<RecordedCheckout> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  if (!host) {
+    throw new Error("Could not record this bid");
+  }
+  const res = await fetch(`${proto}://${host}/api/checkout/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+    cache: "no-store",
+  });
+  const data = (await res.json()) as RecordedCheckout & { error?: string };
+  if (!res.ok && data.error) {
+    return {
+      unpaid: false,
+      already: false,
+      error: data.error,
+      listingId: "home",
+      spotId: 0,
+      spotName: "",
+      bid: null,
+      href: "/",
+    };
+  }
+  if (!res.ok) {
+    throw new Error("Could not record this bid");
+  }
+  return data;
+}
+
 export default async function SuccessPage({ searchParams }: Props) {
   const sessionId = sessionIdFrom(await searchParams);
 
@@ -28,15 +61,14 @@ export default async function SuccessPage({ searchParams }: Props) {
   let href = "/";
   let linkLabel = "Back to Brand my Body";
 
-  if (sessionId.startsWith("cs_test_")) {
+  if (sessionId) {
     try {
-      const stripe = getStripe();
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
-      const result = recordPaidCheckout(session);
+      const result = await completeViaApi(sessionId);
 
       if (result.error) {
         heading = "Could not record this bid";
         body = result.error;
+        href = result.href || "/";
       } else if (result.unpaid) {
         heading = "Payment is not complete";
         body = "No bid was recorded. Finish Checkout to place a live bid.";
@@ -45,19 +77,13 @@ export default async function SuccessPage({ searchParams }: Props) {
         heading = result.already ? "Bid already recorded" : "You're on the body";
         body = `${result.bid.brandName ?? "Your brand"} is live on ${result.spotName} at ${formatUsd(result.bid.amountCents)}.`;
         href = result.href;
-        linkLabel = result.listingId === "home" ? "View the auction" : "View the listing";
+        linkLabel =
+          result.listingId === "home" ? "View the auction" : "View the listing";
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Checkout failed";
       heading = "Could not record this bid";
-      body =
-        message.startsWith("Stripe test mode only") ||
-        message === "Missing STRIPE_SECRET_KEY"
-          ? message
-          : "Could not load this Checkout session.";
+      body = publicError(err, "Could not record this bid");
     }
-  } else if (sessionId) {
-    body = "Stripe test mode only. This session was not recorded.";
   }
 
   return (

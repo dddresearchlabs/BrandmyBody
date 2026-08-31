@@ -1,4 +1,4 @@
-import { getListing } from "@/lib/listings-store";
+import { fetchListing } from "@/lib/listings-db";
 import { getHomeAuction } from "@/lib/auction-store";
 import { asLiveBid, minNextCents } from "@/lib/auction";
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/lib/listings";
 import { getStripe } from "@/lib/stripe";
 import { spotById } from "@/lib/spots";
+import { publicError } from "@/lib/public-error";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,14 @@ export async function POST(request: Request) {
   const isHome = !listingId || listingId === "home";
 
   if (!isHome) {
-    listing = getListing(listingId);
+    try {
+      listing = await fetchListing(listingId);
+    } catch (err) {
+      return Response.json(
+        { error: publicError(err, "Could not load listing") },
+        { status: 503 },
+      );
+    }
     if (!listing) {
       return Response.json({ error: "Unknown listing" }, { status: 400 });
     }

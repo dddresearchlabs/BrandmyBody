@@ -5,8 +5,10 @@ import {
   durationLabel,
   isListingClosed,
   minStartCents,
+  type Listing,
 } from "@/lib/listings";
-import { getListings } from "@/lib/listings-store";
+import { fetchListings } from "@/lib/listings-db";
+import { publicError } from "@/lib/public-error";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +17,14 @@ export const metadata = {
   description: "Your Brand my Body listings.",
 };
 
-export default function AccountPage() {
-  const listings = getListings();
+export default async function AccountPage() {
+  let listings: Listing[] = [];
+  let error: string | null = null;
+  try {
+    listings = await fetchListings();
+  } catch (err) {
+    error = publicError(err, "Could not load listings");
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -27,10 +35,12 @@ export default function AccountPage() {
         </p>
         <h1 className="mt-3 font-serif text-4xl">Account</h1>
         <p className="mt-3 text-muted">
-          All listings. Auth is not wired yet, so this shows every mock listing.
+          All listings. Auth is not wired yet, so this shows every listing.
         </p>
 
-        {listings.length === 0 ? (
+        {error ? <p className="mt-10 text-accent">{error}</p> : null}
+
+        {!error && listings.length === 0 ? (
           <p className="mt-10 text-muted">
             No listings yet.{" "}
             <a href="/list" className="text-accent hover:underline">
@@ -38,7 +48,9 @@ export default function AccountPage() {
             </a>
             .
           </p>
-        ) : (
+        ) : null}
+
+        {!error && listings.length > 0 ? (
           <ul className="mt-10 divide-y divide-line border-y border-line">
             {listings.map((listing) => {
               const closed = isListingClosed(listing.endsAt);
@@ -81,7 +93,7 @@ export default function AccountPage() {
               );
             })}
           </ul>
-        )}
+        ) : null}
       </main>
     </div>
   );

@@ -1,6 +1,8 @@
-import { BrowseGrid } from "@/app/browse/browse-grid";
 import { SiteNav } from "@/components/site-nav";
-import { getListings } from "@/lib/listings-store";
+import { BrowseGrid } from "@/app/browse/browse-grid";
+import { fetchLiveListings } from "@/lib/listings-db";
+import { publicError } from "@/lib/public-error";
+import type { Listing } from "@/lib/listings";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +11,14 @@ export const metadata = {
   description: "Browse Brand my Body listings.",
 };
 
-export default function BrowsePage() {
-  const listings = getListings();
+export default async function BrowsePage() {
+  let listings: Listing[] = [];
+  let error: string | null = null;
+  try {
+    listings = await fetchLiveListings();
+  } catch (err) {
+    error = publicError(err, "Could not load listings");
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -23,7 +31,8 @@ export default function BrowsePage() {
         <p className="mt-3 max-w-xl text-muted">
           Paid logo placements as ink tattoos. Not an endorsement.
         </p>
-        <BrowseGrid listings={listings} />
+        {error ? <p className="mt-8 text-accent">{error}</p> : null}
+        {!error ? <BrowseGrid listings={listings} /> : null}
       </main>
     </div>
   );

@@ -44,7 +44,6 @@ export type Listing = {
   durationDays: DurationDays;
   endsAt: string;
   createdAt: string;
-  processedSessionIds?: string[];
 };
 
 export type CreateListingInput = {
@@ -55,8 +54,6 @@ export type CreateListingInput = {
   bodyPriceDollars?: number;
   spots?: { spotId: number; priceDollars: number }[];
 };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function dollarsToCents(value: number) {
   return Math.round(value * 100);
@@ -119,22 +116,6 @@ export function minStartCents(listing: Listing) {
 
 export function durationLabel(days: DurationDays) {
   return DURATION_OPTIONS.find((option) => option.days === days)?.label ?? `${days} days`;
-}
-
-export function normalizeListing(raw: Listing): Listing {
-  const durationDays = isDurationDays(raw.durationDays) ? raw.durationDays : 14;
-  const createdAt = raw.createdAt ?? new Date().toISOString();
-  const endsAt =
-    raw.endsAt ??
-    new Date(new Date(createdAt).getTime() + durationDays * DAY_MS).toISOString();
-  const spots = (raw.spots ?? []).map((spot) => ({
-    ...spot,
-    current: asLiveBid(spot.current),
-  }));
-  const processedSessionIds = Array.isArray(raw.processedSessionIds)
-    ? raw.processedSessionIds.filter((id) => typeof id === "string")
-    : [];
-  return { ...raw, durationDays, endsAt, createdAt, spots, processedSessionIds };
 }
 
 export function emptySocials(): ListingSocials {
