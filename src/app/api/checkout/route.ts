@@ -1,27 +1,25 @@
 import { fetchListing } from "@/lib/listings-db";
 import { getHomeAuction } from "@/lib/auction-store";
 import { asLiveBid, minNextCents } from "@/lib/auction";
+import { applicationFeeCents } from "@/lib/connect";
 import {
   isListingClosed,
   parseSocials,
   socialsToMeta,
   type Listing,
 } from "@/lib/listings";
+import { fetchListingPayouts } from "@/lib/lister-accounts";
+import { siteOrigin } from "@/lib/site-origin";
 import { getStripe } from "@/lib/stripe";
 import { spotById } from "@/lib/spots";
 import { publicError } from "@/lib/public-error";
+import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
 
 const DEPOSIT_PERCENT = 0.2;
 const MIN_DEPOSIT_CENTS = 1000;
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
-
-function siteOrigin(request: Request) {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
-  return new URL(request.url).origin;
-}
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -129,6 +127,33 @@ export async function POST(request: Request) {
     metadata.listerSocials = socialsToMeta(listing.socials);
   }
 
+  let paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData | undefined;
+  if (listing) {
+    let payouts;
+    try {
+      payouts = await fetchListingPayouts(listing.id);
+    } catch (err) {
+      return Response.json(
+        { error: publicError(err, "Could not load listing") },
+        { status: 503 },
+      );
+    }
+    if (!payouts?.chargesEnabled || !payouts.stripeAccountId) {
+      return Response.json(
+        { error: "Lister has not connected payouts" },
+        { status: 400 },
+      );
+    }
+    const fee = Math.min(
+      applicationFeeCents(depositCents),
+      Math.max(0, depositCents - 1),
+    );
+    paymentIntentData = {
+      application_fee_amount: fee,
+      transfer_data: { destination: payouts.stripeAccountId },
+    };
+  }
+
   try {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
@@ -153,6 +178,9 @@ export async function POST(request: Request) {
         },
       ],
       metadata,
+      ...(paymentIntentData
+        ? { payment_intent_data: paymentIntentData }
+        : {}),
     });
 
     if (!session.url) {
@@ -165,6 +193,16 @@ export async function POST(request: Request) {
     return Response.json({ url: session.url, sessionId: session.id });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Checkout failed";
+    if (
+      /destination|application_fee|connected account|charges_enabled|payouts/i.test(
+        message,
+      )
+    ) {
+      return Response.json(
+        { error: "Lister has not connected payouts" },
+        { status: 400 },
+      );
+    }
     const safe =
       message.startsWith("Stripe test mode only") ||
       message === "Missing STRIPE_SECRET_KEY"

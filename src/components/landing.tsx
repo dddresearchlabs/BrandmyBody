@@ -524,6 +524,11 @@ function GetSpotModal({
       return;
     }
 
+    if (listing && !listing.chargesEnabled) {
+      setError("Lister has not connected payouts");
+      return;
+    }
+
     const logo = form.get("logo");
     if (logo instanceof File && logo.size > 0) {
       try {
@@ -600,6 +605,11 @@ function GetSpotModal({
         Winning logos are printed as ink tattoos and worn for 365 days. Paid
         placement, not an endorsement.
       </p>
+      {listing && !listing.chargesEnabled ? (
+        <p className="mt-3 text-sm text-accent">
+          Lister has not connected payouts
+        </p>
+      ) : null}
       <form
         key={spot?.spotId ?? "empty"}
         className="mt-5 grid gap-3"
@@ -666,7 +676,9 @@ function GetSpotModal({
         <div className="mt-2 flex flex-wrap gap-3">
           <button
             type="submit"
-            disabled={submitting || !spot}
+            disabled={
+              submitting || !spot || Boolean(listing && !listing.chargesEnabled)
+            }
             className="rounded-full bg-accent px-4 py-2 text-sm text-white hover:brightness-110 disabled:opacity-50"
           >
             {submitting ? "Redirecting…" : "Get a spot"}

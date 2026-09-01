@@ -46,6 +46,7 @@ export type Listing = {
   createdAt: string;
   photoUrl?: string | null;
   refundError?: string | null;
+  chargesEnabled?: boolean;
 };
 
 export type CreateListingInput = {

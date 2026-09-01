@@ -13,6 +13,7 @@ import {
 import { HARDCODED_SPOTS, spotById } from "@/lib/spots";
 import { antiSnipeEndsAt } from "@/lib/auction";
 import { publicError } from "@/lib/public-error";
+import { fetchListerAccount } from "@/lib/lister-accounts";
 
 type ListingRow = {
   id: string;
@@ -26,10 +27,11 @@ type ListingRow = {
   entire_body: boolean;
   status: string;
   photo_url: string | null;
+  owner_id: string | null;
 };
 
 const LISTING_SELECT =
-  "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status, photo_url";
+  "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status, photo_url, owner_id";
 
 type ListingSpotRow = {
   id: string;
@@ -222,6 +224,7 @@ export async function fetchListingsByOwner(ownerId: string) {
   const ids = rows.map((row) => row.id);
   const { spots, bids } = await spotsAndBids(ids);
   const refundErrors = await fetchRefundErrors(ids);
+  const account = await fetchListerAccount(ownerId);
   return rows.map((row) => {
     const listing = assemble(
       row,
@@ -231,6 +234,7 @@ export async function fetchListingsByOwner(ownerId: string) {
     const messages = refundErrors.get(row.id);
     return {
       ...listing,
+      chargesEnabled: account.chargesEnabled,
       refundError: messages?.length ? messages.join(" ") : null,
     };
   });
@@ -247,8 +251,13 @@ export async function fetchListing(id: string) {
     .maybeSingle();
   if (error) fail(error, "Could not load listing");
   if (!data) return null;
+  const row = data as ListingRow;
   const { spots, bids } = await spotsAndBids([id]);
-  return assemble(data as ListingRow, spots, bids);
+  const listing = assemble(row, spots, bids);
+  const ownerId = row.owner_id;
+  if (!ownerId) return { ...listing, chargesEnabled: false };
+  const account = await fetchListerAccount(ownerId);
+  return { ...listing, chargesEnabled: account.chargesEnabled };
 }
 
 function buildSpots(input: CreateListingInput) {
@@ -303,6 +312,7 @@ export async function insertListing(ownerId: string, input: CreateListingInput) 
   ).toISOString();
 
   const supabase = createAdminClient();
+  const account = await fetchListerAccount(ownerId);
   const listingRes = await supabase
     .from("listings")
     .insert({
@@ -316,6 +326,8 @@ export async function insertListing(ownerId: string, input: CreateListingInput) 
       entire_body: input.scope === "entire",
       status: "live",
       owner_id: ownerId,
+      stripe_account_id: account.stripeAccountId,
+      charges_enabled: account.chargesEnabled,
     })
     .select(
       LISTING_SELECT,

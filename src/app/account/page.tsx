@@ -2,6 +2,7 @@ import { SiteNav } from "@/components/site-nav";
 import { TimeLeft } from "@/components/time-left";
 import { formatUsd } from "@/lib/auction";
 import { getSessionUser } from "@/lib/auth";
+import { connectStatus, connectStatusLabel } from "@/lib/connect";
 import {
   durationLabel,
   isListingClosed,
@@ -9,6 +10,7 @@ import {
   type Listing,
 } from "@/lib/listings";
 import { fetchListingsByOwner } from "@/lib/listings-db";
+import { fetchListerAccount } from "@/lib/lister-accounts";
 import { publicError } from "@/lib/public-error";
 import { redirect } from "next/navigation";
 
@@ -25,10 +27,19 @@ export default async function AccountPage() {
 
   let listings: Listing[] = [];
   let error: string | null = null;
+  let payoutsStatus = connectStatus({
+    stripeAccountId: null,
+    chargesEnabled: false,
+  });
+  try {
+    payoutsStatus = connectStatus(await fetchListerAccount(user.id));
+  } catch (err) {
+    error = publicError(err, "Could not load Connect status");
+  }
   try {
     listings = await fetchListingsByOwner(user.id);
   } catch (err) {
-    error = publicError(err, "Could not load listings");
+    error = error ?? publicError(err, "Could not load listings");
   }
 
   return (
@@ -39,8 +50,20 @@ export default async function AccountPage() {
           Marketplace
         </p>
         <h1 className="mt-3 font-serif text-4xl">Account</h1>
-        <p className="mt-3 text-muted">
-          Your listings. Connect later is not wired yet.
+        <p className="mt-3 text-muted">Your listings.</p>
+        <p className="mt-4 text-sm">
+          Connect status:{" "}
+          <span className="capitalize text-accent">
+            {connectStatusLabel(payoutsStatus)}
+          </span>
+          {" · "}
+          <a href="/connect" className="text-accent hover:underline">
+            {payoutsStatus === "ready"
+              ? "Manage payouts"
+              : payoutsStatus === "pending"
+                ? "Continue Connect"
+                : "Connect payouts"}
+          </a>
         </p>
 
         {error ? <p className="mt-10 text-accent">{error}</p> : null}

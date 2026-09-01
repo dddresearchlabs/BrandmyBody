@@ -40,3 +40,14 @@ export function getStripe() {
 
   return stripe;
 }
+
+export function assertStripeTestMode(obj: unknown) {
+  if (
+    obj &&
+    typeof obj === "object" &&
+    "livemode" in obj &&
+    (obj as { livemode?: unknown }).livemode === true
+  ) {
+    throw new Error("Stripe test mode only");
+  }
+}

@@ -7,7 +7,7 @@ Notable changes to Brand my Body, grouped by the date they first landed.
 - Magic-link auth: `/login` emails a link and accepts the 6-digit code; `/logout` signs out; `/auth/callback` finishes the link.
 - Site nav shows Log in, or Account and Log out, from the session.
 - `/list`, `/account`, and `/connect` require a logged-in user. New listings set `owner_id` from the session. `/account` only shows that user’s listings.
-- `/connect` is a placeholder. Stripe Connect is not wired.
+- Stripe Connect Express for logged-in listers (test keys only): `/connect` creates or reuses `stripe_account_id`, Account Link onboarding, `/connect/callback` saves `charges_enabled` on the user and listings. `/account` shows not started / pending / ready. Marketplace Checkout destination-charges 10% of the deposit when ready; otherwise “Lister has not connected payouts” and no Checkout. Home demo stays platform Checkout. SQL: `supabase/stripe-connect.sql`.
 - RLS for listings: public can read live rows; only the owner can insert or update their own. SQL: `supabase/listings-auth.sql`.
 - Outbid refunds: a new high bid goes `live`, the previous goes `outbid`, and the previous PaymentIntent is refunded. The bid that just paid is never refunded. A failed refund stays live and shows a non-secret error on `/account` and `/success`. SQL: `supabase/listing-bids-outbid.sql`.
 - Anti-snipe: a paid bid in the last 10 minutes of `ends_at` extends close by 10 minutes on the home auction and marketplace listings.
