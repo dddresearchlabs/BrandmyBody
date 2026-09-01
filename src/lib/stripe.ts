@@ -1,5 +1,6 @@
 import "server-only";
 import Stripe from "stripe";
+import type { StripeKeyMode } from "@/lib/connect";
 
 let stripe: Stripe | undefined;
 let stripeKey: string | undefined;
@@ -18,6 +19,15 @@ function keyKind(key: string) {
   if (key.startsWith("pk_test_")) return "test publishable key";
   if (key.startsWith("rk_")) return "restricted key";
   return "not a test secret";
+}
+
+/** Mode from STRIPE_SECRET_KEY prefix only. Never returns the key. */
+export function stripeKeyMode(): StripeKeyMode | null {
+  const raw =
+    process.env.STRIPE_SECRET_KEY?.trim().replace(/^["']|["']$/g, "") ?? "";
+  if (raw.startsWith("sk_test_")) return "test";
+  if (raw.startsWith("sk_live_")) return "live";
+  return null;
 }
 
 export function getStripe() {

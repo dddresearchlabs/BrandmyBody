@@ -17,6 +17,15 @@ export function connectStatusLabel(status: ConnectStatus) {
   return "not started";
 }
 
+export type StripeKeyMode = "test" | "live";
+
+export function connectPayoutsCopy(mode?: StripeKeyMode | null) {
+  if (mode === "test" || mode === "live") {
+    return `Lister has not connected payouts\nstripeKeyMode: "${mode}"`;
+  }
+  return "Lister has not connected payouts";
+}
+
 export const CONNECT_FEE_PERCENT = 0.1;
 
 export function applicationFeeCents(depositCents: number) {

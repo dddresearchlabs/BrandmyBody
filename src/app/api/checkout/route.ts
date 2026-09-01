@@ -10,7 +10,7 @@ import {
 } from "@/lib/listings";
 import { fetchListingPayouts } from "@/lib/lister-accounts";
 import { siteOrigin } from "@/lib/site-origin";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, stripeKeyMode } from "@/lib/stripe";
 import { spotById } from "@/lib/spots";
 import { publicError } from "@/lib/public-error";
 import type Stripe from "stripe";
@@ -27,6 +27,16 @@ function asString(value: unknown) {
 
 function meta(value: string) {
   return value.slice(0, 500);
+}
+
+function listerPayoutsResponse() {
+  return Response.json(
+    {
+      error: "Lister has not connected payouts",
+      stripeKeyMode: stripeKeyMode(),
+    },
+    { status: 400 },
+  );
 }
 
 export async function POST(request: Request) {
@@ -139,10 +149,7 @@ export async function POST(request: Request) {
       );
     }
     if (!payouts?.chargesEnabled || !payouts.stripeAccountId) {
-      return Response.json(
-        { error: "Lister has not connected payouts" },
-        { status: 400 },
-      );
+      return listerPayoutsResponse();
     }
     const fee = Math.min(
       applicationFeeCents(depositCents),
@@ -198,10 +205,7 @@ export async function POST(request: Request) {
         message,
       )
     ) {
-      return Response.json(
-        { error: "Lister has not connected payouts" },
-        { status: 400 },
-      );
+      return listerPayoutsResponse();
     }
     const safe =
       message.startsWith("Stripe test mode only") ||

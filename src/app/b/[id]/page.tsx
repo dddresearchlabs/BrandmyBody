@@ -2,6 +2,7 @@ import { Landing } from "@/components/landing";
 import { SiteNav } from "@/components/site-nav";
 import { fetchListing } from "@/lib/listings-db";
 import { publicError } from "@/lib/public-error";
+import { stripeKeyMode } from "@/lib/stripe";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -28,7 +29,7 @@ export default async function BodyListingPage({ params }: Props) {
   try {
     const listing = await fetchListing(id);
     if (!listing) notFound();
-    return <Landing listing={listing} />;
+    return <Landing listing={listing} stripeKeyMode={stripeKeyMode()} />;
   } catch (err) {
     return (
       <div className="flex flex-1 flex-col">

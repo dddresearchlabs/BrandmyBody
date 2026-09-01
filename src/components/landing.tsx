@@ -12,6 +12,7 @@ import {
 } from "@/lib/listings";
 import { assertImageFile } from "@/lib/image-file";
 import { stashBidLogo } from "@/lib/bid-logo-stash";
+import { connectPayoutsCopy, type StripeKeyMode } from "@/lib/connect";
 
 const NAV = [
   { href: "#auction", label: "Live auction" },
@@ -101,7 +102,13 @@ function useCountdown(endsAt: string | null) {
   };
 }
 
-export function Landing({ listing }: { listing?: Listing }) {
+export function Landing({
+  listing,
+  stripeKeyMode,
+}: {
+  listing?: Listing;
+  stripeKeyMode?: StripeKeyMode | null;
+}) {
   const [auction, setAuction] = useState<Auction | null>(() =>
     listing ? listingToAuction(listing) : null,
   );
@@ -436,6 +443,7 @@ export function Landing({ listing }: { listing?: Listing }) {
             titleId={titleId}
             spot={selected ?? auction?.spots[0] ?? null}
             listing={listing}
+            stripeKeyMode={stripeKeyMode}
             onClose={() => setModalOpen(false)}
           />
         </dialog>
@@ -485,11 +493,13 @@ function GetSpotModal({
   titleId,
   spot,
   listing,
+  stripeKeyMode,
   onClose,
 }: {
   titleId: string;
   spot: Spot | null;
   listing?: Listing;
+  stripeKeyMode?: StripeKeyMode | null;
   onClose: () => void;
 }) {
   const minDollars = spot ? dollars(spot.minNextCents) : 0;
@@ -525,7 +535,7 @@ function GetSpotModal({
     }
 
     if (listing && !listing.chargesEnabled) {
-      setError("Lister has not connected payouts");
+      setError(connectPayoutsCopy(stripeKeyMode));
       return;
     }
 
@@ -559,9 +569,14 @@ function GetSpotModal({
         url?: string;
         sessionId?: string;
         error?: string;
+        stripeKeyMode?: StripeKeyMode | null;
       };
       if (!res.ok || !data.url) {
-        setError(data.error ?? "Checkout failed");
+        setError(
+          data.error === "Lister has not connected payouts"
+            ? connectPayoutsCopy(data.stripeKeyMode ?? stripeKeyMode)
+            : (data.error ?? "Checkout failed"),
+        );
         setSubmitting(false);
         return;
       }
@@ -606,8 +621,8 @@ function GetSpotModal({
         placement, not an endorsement.
       </p>
       {listing && !listing.chargesEnabled ? (
-        <p className="mt-3 text-sm text-accent">
-          Lister has not connected payouts
+        <p className="mt-3 whitespace-pre-line text-sm text-accent">
+          {connectPayoutsCopy(stripeKeyMode)}
         </p>
       ) : null}
       <form
@@ -672,7 +687,9 @@ function GetSpotModal({
             className={`${fieldClass} file:mr-3 file:rounded file:border-0 file:bg-line file:px-2 file:py-1 file:text-foreground`}
           />
         </label>
-        {error ? <p className="text-sm text-accent">{error}</p> : null}
+        {error ? (
+          <p className="whitespace-pre-line text-sm text-accent">{error}</p>
+        ) : null}
         <div className="mt-2 flex flex-wrap gap-3">
           <button
             type="submit"
