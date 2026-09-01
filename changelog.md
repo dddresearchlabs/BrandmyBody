@@ -2,6 +2,10 @@
 
 Notable changes to Brand my Body, grouped by the date they first landed.
 
+## 2026-09-01
+
+- Connect onboarding uses Stripe Accounts v2 (`POST /v2/core/accounts`) with Express dashboard and recipient `stripe_transfers`, not Accounts v1 `type=express`. `/connect/callback` sets `charges_enabled` when the account can receive transfers. Marketplace Checkout still destination-charges 10% of the deposit using the v2 account id. Stripe error text shows if Connect fails.
+
 ## 2026-08-31
 
 - Magic-link auth: `/login` emails a link and accepts the 6-digit code; `/logout` signs out; `/auth/callback` finishes the link.

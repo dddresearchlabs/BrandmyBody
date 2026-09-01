@@ -32,10 +32,10 @@ Brands bid on logo spots on my body. Winning logos are printed as ink tattoo and
 - CTA: Get a spot
 Site nav (Browse, List a body, Log in / Account / Log out) on `/`, `/browse`, `/list`, `/account`, `/b/[id]`.
 ## Marketplace
-People list their own bodies. The original single-body demo stays at `/`. Stripe Connect Express (test keys only) for logged-in listers.
+People list their own bodies. The original single-body demo stays at `/`. Stripe Connect Accounts v2 (Express dashboard, recipient, test keys only) for logged-in listers.
 - Auth: Supabase email magic link. `/login` emails a link and accepts the 6-digit code for tests. `/logout` signs out. `/auth/callback` exchanges the PKCE `code` for a session and sets auth cookies on the redirect (`@supabase/ssr` `getAll`/`setAll`). Default after success is `/account`. Exchange errors show on `/login` (no secrets). Add `http://localhost:3000/auth/callback` and the production `/auth/callback` URL to the Supabase Auth redirect allow list (no query string).
 - `/list` and `/connect` require a logged-in user.
-- `/connect` — create a Stripe Connect Express account or reuse this user’s `stripe_account_id`, create an Account Link, and redirect to Stripe onboarding. Return URL `/connect/callback` retrieves the account (reject live mode), then saves `stripe_account_id` and `charges_enabled` on `lister_accounts` and that user’s `listings`. Status: no account id = not started; account id without `charges_enabled` = pending; `charges_enabled` = ready. SQL: `supabase/stripe-connect.sql`.
+- `/connect` — create a Stripe Accounts v2 connected account (`POST /v2/core/accounts`) or reuse this user’s `stripe_account_id`. Marketplace recipient + Express dashboard, test mode only. Create a v2 Account Link and redirect to Stripe onboarding. Return URL `/connect/callback` retrieves the v2 account (reject live mode), then saves `stripe_account_id` and sets `charges_enabled` when `configuration.recipient.capabilities.stripe_balance.stripe_transfers.status` is `active`. Stripe API errors show in the UI (no secrets). SQL: `supabase/stripe-connect.sql`.
 - `/list` — create a listing: display name, socials (X, Instagram, TikTok, website), entire body or selected parts, starting prices, auction length. New rows set `owner_id` from the session. No backfill.
 - Auction length: 1 day / 3 days / 1 week / 2 weeks, stored as `durationDays`: 1 | 3 | 7 | 14. On create, `endsAt` = now + durationDays
 - Selected parts use the 10 SPEC spots

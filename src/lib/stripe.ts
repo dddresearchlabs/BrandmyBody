@@ -44,7 +44,10 @@ export function getStripe() {
   }
 
   if (!stripe || stripeKey !== secretKey) {
-    stripe = new Stripe(secretKey);
+    stripe = new Stripe(secretKey, {
+      apiVersion: "2026-08-26.dahlia",
+      typescript: true,
+    });
     stripeKey = secretKey;
   }
 

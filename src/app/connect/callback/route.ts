@@ -1,7 +1,11 @@
 import { getSessionUser } from "@/lib/auth";
 import { fetchListerAccount, saveListerConnect } from "@/lib/lister-accounts";
 import { siteOrigin } from "@/lib/site-origin";
-import { getStripe, assertStripeTestMode } from "@/lib/stripe";
+import {
+  recipientTransfersActive,
+  retrieveV2Account,
+  stripeErrorText,
+} from "@/lib/stripe-connect";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -22,21 +26,15 @@ export async function GET(request: Request) {
       return redirectTo(request, "/connect");
     }
 
-    const stripe = getStripe();
-    const account = await stripe.accounts.retrieve(stored.stripeAccountId);
-    assertStripeTestMode(account);
-
+    const account = await retrieveV2Account(stored.stripeAccountId);
     await saveListerConnect(user.id, {
       stripeAccountId: account.id,
-      chargesEnabled: Boolean(account.charges_enabled),
+      chargesEnabled: recipientTransfersActive(account),
     });
 
     return redirectTo(request, "/account");
   } catch (err) {
-    const message = err instanceof Error ? err.message : "";
-    const safe = message.startsWith("Stripe test mode only")
-      ? message
-      : "Could not finish Connect";
-    return redirectTo(request, `/connect?error=${encodeURIComponent(safe)}`);
+    const message = stripeErrorText(err, "Could not finish Connect");
+    return redirectTo(request, `/connect?error=${encodeURIComponent(message)}`);
   }
 }
