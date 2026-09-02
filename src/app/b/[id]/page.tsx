@@ -1,7 +1,8 @@
 import { Landing } from "@/components/landing";
 import { SiteNav } from "@/components/site-nav";
+import { closeListingIfEnded, requestFromHeaders } from "@/lib/listing-close";
 import { fetchListing } from "@/lib/listings-db";
-import { isListingPublic } from "@/lib/listings";
+import { isListingClosed, isListingPublic } from "@/lib/listings";
 import { publicError } from "@/lib/public-error";
 import { stripeKeyMode } from "@/lib/stripe";
 import type { Metadata } from "next";
@@ -30,8 +31,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function BodyListingPage({ params }: Props) {
   const { id } = await params;
   try {
-    const listing = await fetchListing(id);
+    let listing = await fetchListing(id);
     if (!listing) notFound();
+    if (listing.status === "live" && isListingClosed(listing.endsAt)) {
+      try {
+        listing =
+          (await closeListingIfEnded(id, await requestFromHeaders())) ?? listing;
+      } catch {
+        // Show the listing as time-closed even if invoicing fails.
+      }
+    }
     if (!isListingPublic(listing)) {
       return (
         <div className="flex flex-1 flex-col">

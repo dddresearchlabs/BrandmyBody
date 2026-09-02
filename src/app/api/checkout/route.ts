@@ -6,11 +6,13 @@ import {
   HOME_WEAR_MONTHS,
   isListingClosed,
   isListingPublic,
+  parseBidderMessage,
   parseSocials,
   socialsToMeta,
   wornForCopy,
   type Listing,
 } from "@/lib/listings";
+import { closeListingIfEnded } from "@/lib/listing-close";
 import { fetchListingPayouts } from "@/lib/lister-accounts";
 import { siteOrigin } from "@/lib/site-origin";
 import { getStripe, stripeKeyMode } from "@/lib/stripe";
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
   const brandName = asString(payload.brandName);
   const email = asString(payload.email);
   const buyerSocials = parseSocials(payload.buyerSocials);
+  const bidderMessage = parseBidderMessage(payload.bidderMessage);
 
   const catalog = Number.isInteger(spotId) ? spotById(spotId) : null;
   if (!catalog) {
@@ -80,6 +83,13 @@ export async function POST(request: Request) {
     }
     if (!isListingPublic(listing)) {
       return Response.json({ error: "This listing was removed" }, { status: 400 });
+    }
+    if (listing.status === "live" && isListingClosed(listing.endsAt)) {
+      try {
+        listing = (await closeListingIfEnded(listing.id, request)) ?? listing;
+      } catch {
+        // Time is up; still reject new bids even if invoicing fails.
+      }
     }
     if (listing.status === "closed" || isListingClosed(listing.endsAt)) {
       return Response.json({ error: "This listing is closed" }, { status: 400 });
@@ -133,6 +143,10 @@ export async function POST(request: Request) {
     buyerSocials: socialsToMeta(buyerSocials),
     wearMonths: String(listing?.wearMonths ?? HOME_WEAR_MONTHS),
   };
+
+  if (bidderMessage) {
+    metadata.bidderMessage = meta(bidderMessage);
+  }
 
   if (listing) {
     metadata.durationDays = String(listing.durationDays);

@@ -4,6 +4,7 @@ export type LiveBid = {
   website: string | null;
   xHandle: string | null;
   logoUrl: string | null;
+  message?: string | null;
   status: string;
   stripeSessionId?: string;
   stripePaymentIntentId?: string;
@@ -49,6 +50,7 @@ export function asLiveBid(value: unknown): LiveBid | null {
     website: text("website"),
     xHandle: text("xHandle"),
     logoUrl: text("logoUrl"),
+    message: text("message"),
     status: "live",
     stripeSessionId: text("stripeSessionId") ?? undefined,
     stripePaymentIntentId: text("stripePaymentIntentId") ?? undefined,

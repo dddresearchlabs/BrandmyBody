@@ -67,6 +67,7 @@ type ListingBidRow = {
   deposit_transferred_at: string | null;
   stripe_transfer_id: string | null;
   close_error: string | null;
+  bidder_message: string | null;
 };
 
 function fail(err: unknown, fallback: string): never {
@@ -85,6 +86,7 @@ function toLiveBid(row: ListingBidRow): LiveBid | null {
     website: row.website,
     xHandle: row.x_handle,
     logoUrl: row.logo_url,
+    message: row.bidder_message,
     status: row.status === "live" ? "live" : row.status,
     stripeSessionId: row.stripe_session_id,
     stripePaymentIntentId: row.stripe_payment_intent_id,
@@ -165,11 +167,27 @@ async function spotsAndBids(listingIds: string[]) {
   const bidsRes = await supabase
     .from("listing_bids")
     .select(
-      "id, listing_id, spot_id, amount_cents, brand_name, website, x_handle, email, logo_url, status, stripe_session_id",
+      "id, listing_id, spot_id, amount_cents, brand_name, website, x_handle, email, logo_url, status, stripe_session_id, bidder_message",
     )
     .in("listing_id", listingIds)
     .eq("status", "live");
-  if (bidsRes.error) fail(bidsRes.error, "Could not load listing bids");
+  if (bidsRes.error) {
+    if (/bidder_message|column/i.test(bidsRes.error.message ?? "")) {
+      const fallback = await supabase
+        .from("listing_bids")
+        .select(
+          "id, listing_id, spot_id, amount_cents, brand_name, website, x_handle, email, logo_url, status, stripe_session_id",
+        )
+        .in("listing_id", listingIds)
+        .eq("status", "live");
+      if (fallback.error) fail(fallback.error, "Could not load listing bids");
+      return {
+        spots: (spotsRes.data ?? []) as ListingSpotRow[],
+        bids: (fallback.data ?? []) as ListingBidRow[],
+      };
+    }
+    fail(bidsRes.error, "Could not load listing bids");
+  }
 
   return {
     spots: (spotsRes.data ?? []) as ListingSpotRow[],
@@ -417,7 +435,7 @@ export async function setListingPhotoUrl(
 }
 
 const BID_SELECT =
-  "id, listing_id, spot_id, amount_cents, brand_name, website, x_handle, email, logo_url, status, stripe_session_id, stripe_payment_intent_id, refunded_at, refund_error, stripe_payment_link_id, stripe_payment_link_url, balance_paid_at, deposit_transferred_at, stripe_transfer_id, close_error";
+  "id, listing_id, spot_id, amount_cents, brand_name, website, x_handle, email, logo_url, status, stripe_session_id, stripe_payment_intent_id, refunded_at, refund_error, stripe_payment_link_id, stripe_payment_link_url, balance_paid_at, deposit_transferred_at, stripe_transfer_id, close_error, bidder_message";
 
 export type OutbidRefundTarget = {
   id: string;
@@ -434,6 +452,7 @@ export async function recordPaidListingBid(input: {
   xHandle: string | null;
   email: string;
   logoUrl: string | null;
+  message?: string | null;
   stripeSessionId: string;
   stripePaymentIntentId: string | null;
   paidAt?: number;
@@ -512,6 +531,7 @@ export async function recordPaidListingBid(input: {
           status: "outbid",
           stripe_session_id: input.stripeSessionId,
           stripe_payment_intent_id: input.stripePaymentIntentId,
+          bidder_message: input.message?.trim() || null,
         })
         .select("id")
         .single();
@@ -549,6 +569,7 @@ export async function recordPaidListingBid(input: {
         status: "live",
         stripe_session_id: input.stripeSessionId,
         stripe_payment_intent_id: input.stripePaymentIntentId,
+        bidder_message: input.message?.trim() || null,
       })
       .select("id")
       .single();

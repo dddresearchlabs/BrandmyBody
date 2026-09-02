@@ -182,6 +182,13 @@ export function socialsToMeta(socials: ListingSocials) {
   return JSON.stringify(socials).slice(0, 500);
 }
 
+export const BIDDER_MESSAGE_MAX = 500;
+
+export function parseBidderMessage(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, BIDDER_MESSAGE_MAX);
+}
+
 export function socialHref(kind: keyof ListingSocials, value: string) {
   const raw = value.trim();
   if (!raw) return null;

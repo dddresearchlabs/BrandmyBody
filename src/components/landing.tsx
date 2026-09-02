@@ -6,6 +6,7 @@ import { SiteNav } from "@/components/site-nav";
 import type { Auction, Spot } from "@/lib/auction";
 import { dollars, formatUsd } from "@/lib/auction";
 import {
+  BIDDER_MESSAGE_MAX,
   HOME_WEAR_MONTHS,
   listingToAuction,
   socialHref,
@@ -39,7 +40,7 @@ function howItWorks(wearMonths: Listing["wearMonths"]) {
     {
       n: "03",
       title: `Win, ink, wear ${wearLabel(wearMonths)}`,
-      body: `Highest bid at close wins even if the goal is missed. The remaining 80% is due on a 7-day Payment Link. Platform takes 10% of the winning bid only, from that final payment. The logo is printed as an ink tattoo and ${wornForCopy(wearMonths)}. There will be a video of the tattoo being placed.`,
+      body: `Highest bid at close wins even if the goal is missed. When time runs out, the auction closes. The remaining 80% is due on a 7-day Payment Link. Platform takes 10% of the winning bid only, from that final payment. The logo is printed as an ink tattoo and ${wornForCopy(wearMonths)}. There will be a video of the tattoo being placed.`,
     },
   ];
 }
@@ -68,7 +69,7 @@ function faqs(wearMonths: Listing["wearMonths"]) {
     },
     {
       q: "When is the rest due?",
-      a: "The remaining 80% is charged after close on a 7-day Payment Link. Platform takes 10% of the winning bid only, from that payment. Outbid bids are not charged.",
+      a: "When the timer runs out, the auction closes. Each winning bid is billed the remaining 80% on a 7-day Payment Link. Platform takes 10% of the winning bid only, from that payment. Outbid bids are not charged.",
     },
     {
       q: "How long is the placement worn?",
@@ -605,6 +606,9 @@ function GetSpotModal({
     const bidDollars = Number(form.get("amount"));
     const brandName = String(form.get("brandName") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
+    const bidderMessage = String(form.get("bidderMessage") ?? "")
+      .trim()
+      .slice(0, BIDDER_MESSAGE_MAX);
     const buyerSocials = {
       x: String(form.get("x") ?? "").trim(),
       instagram: String(form.get("instagram") ?? "").trim(),
@@ -654,6 +658,7 @@ function GetSpotModal({
           brandName,
           email,
           buyerSocials,
+          bidderMessage: bidderMessage || undefined,
         }),
       });
       const data = (await res.json()) as {
@@ -767,6 +772,16 @@ function GetSpotModal({
             required
             autoComplete="email"
             className={fieldClass}
+          />
+        </label>
+        <label className="text-sm">
+          Message
+          <textarea
+            name="bidderMessage"
+            rows={4}
+            maxLength={BIDDER_MESSAGE_MAX}
+            placeholder="Optional note for the lister"
+            className={`${fieldClass} min-h-[6rem] resize-y`}
           />
         </label>
         <label className="text-sm">

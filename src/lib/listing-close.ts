@@ -1,4 +1,5 @@
 import "server-only";
+import { headers } from "next/headers";
 import { isListingClosed } from "@/lib/listings";
 import {
   fetchListing,
@@ -129,4 +130,24 @@ export async function closeListing(input: {
     winners: invoiced.winners,
     closeError,
   };
+}
+
+export async function requestFromHeaders() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  return new Request(`${proto}://${host}/`);
+}
+
+export async function closeListingIfEnded(listingId: string, request: Request) {
+  const listing = await fetchListing(listingId);
+  if (!listing || listing.status !== "live") return listing;
+  if (!isListingClosed(listing.endsAt)) return listing;
+  await closeListing({
+    listingId,
+    closedBy: "cron",
+    userId: "cron",
+    request,
+  });
+  return (await fetchListing(listingId)) ?? listing;
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { formatUsd } from "@/lib/auction";
 import { TimeLeft } from "@/components/time-left";
+import { spotById } from "@/lib/spots";
 import {
   durationLabel,
   isListingClosed,
@@ -132,9 +133,11 @@ function CloseButton({
 function ListingRow({
   listing,
   remove,
+  allowAdminClose,
 }: {
   listing: Listing;
   remove?: "owner" | "admin";
+  allowAdminClose?: boolean;
 }) {
   const ended = isListingClosed(listing.endsAt) || listing.status === "closed";
   const removed = listing.status === "removed";
@@ -142,9 +145,12 @@ function ListingRow({
   const canRemove =
     Boolean(remove) && listing.status === "live" && liveBidCount > 0;
   const canOwnerCloseEarly =
-    remove === "owner" && listing.status === "live" && liveBidCount === 0;
+    remove === "owner" &&
+    !allowAdminClose &&
+    listing.status === "live" &&
+    liveBidCount === 0;
   const canAdminClose =
-    remove === "admin" &&
+    (remove === "admin" || allowAdminClose) &&
     !removed &&
     (listing.status === "live" || Boolean(listing.closeError));
   return (
@@ -184,6 +190,17 @@ function ListingRow({
         {listing.closeError ? (
           <p className="mt-2 text-sm text-accent">{listing.closeError}</p>
         ) : null}
+        {listing.spots
+          .filter((spot) => spot.current?.message)
+          .map((spot) => {
+            const name = spotById(spot.spotId)?.name ?? `Spot ${spot.spotId}`;
+            const brand = spot.current?.brandName?.trim() || "Bidder";
+            return (
+              <p key={`msg-${spot.spotId}`} className="mt-2 text-sm text-muted">
+                {name} · {brand}: {spot.current?.message}
+              </p>
+            );
+          })}
         {listing.balanceLinks?.length ? (
           <ul className="mt-2 space-y-1 text-sm">
             {listing.balanceLinks.map((link) => (
@@ -222,9 +239,11 @@ function ListingRow({
 export function AccountListings({
   listings,
   adminListings,
+  isAdmin,
 }: {
   listings: Listing[];
   adminListings: Listing[];
+  isAdmin?: boolean;
 }) {
   return (
     <>
@@ -243,24 +262,33 @@ export function AccountListings({
               key={listing.id}
               listing={listing}
               remove="owner"
+              allowAdminClose={isAdmin}
             />
           ))}
         </ul>
       )}
 
-      {adminListings.length > 0 ? (
+      {isAdmin ? (
         <section className="mt-16">
           <h2 className="font-serif text-2xl">Admin</h2>
-          <p className="mt-2 text-sm text-muted">Every live listing.</p>
-          <ul className="mt-6 divide-y divide-line border-y border-line">
-            {adminListings.map((listing) => (
-              <ListingRow
-                key={`admin-${listing.id}`}
-                listing={listing}
-                remove="admin"
-              />
-            ))}
-          </ul>
+          <p className="mt-2 text-sm text-muted">
+            Close auction ends a live listing now. Winners get the remaining 80%
+            Payment Link. The daily job also closes listings after the timer hits
+            zero (00:00 UTC).
+          </p>
+          {adminListings.length > 0 ? (
+            <ul className="mt-6 divide-y divide-line border-y border-line">
+              {adminListings.map((listing) => (
+                <ListingRow
+                  key={`admin-${listing.id}`}
+                  listing={listing}
+                  remove="admin"
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-6 text-sm text-muted">No live listings.</p>
+          )}
         </section>
       ) : null}
     </>

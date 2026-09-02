@@ -44,9 +44,10 @@ export default async function ConnectPage({ searchParams }: Props) {
         <h1 className="mt-3 font-serif text-4xl">Connect payouts</h1>
         <p className="mt-4 text-lg leading-8 text-muted">
           Stripe Connect Express, test mode. Brands pay a 20% deposit now
-          (refunded if outbid or the listing is removed). Platform takes 10% of
-          the winning bid only, from the remaining 80% payment. Payouts go to
-          this account when charges are enabled.
+          (refunded if outbid or the listing is removed). There is no platform
+          fee on the deposit. Platform takes 10% of the total winning bid only,
+          from the remaining 80% payment. Payouts go to this account when
+          charges are enabled.
         </p>
         {loadError ? (
           <p className="mt-8 text-accent">{loadError}</p>
