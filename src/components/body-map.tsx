@@ -1,6 +1,9 @@
 import type { Spot } from "@/lib/auction";
 import { formatUsd } from "@/lib/auction";
 
+const VIEW_W = 200;
+const VIEW_H = 420;
+
 const POSITIONS: Record<number, { x: number; y: number; r: number }> = {
   1: { x: 100, y: 150, r: 18 },
   2: { x: 126, y: 132, r: 13 },
@@ -44,7 +47,15 @@ function truncate(value: string, max = 10) {
   return `${trimmed.slice(0, max - 1)}…`;
 }
 
-function SpotButton({
+function pctX(x: number) {
+  return (x / VIEW_W) * 100;
+}
+
+function pctY(y: number) {
+  return (y / VIEW_H) * 100;
+}
+
+function SpotMarker({
   spot,
   selected,
   onSelect,
@@ -60,96 +71,114 @@ function SpotButton({
   const priceLabel = spot.current
     ? `${formatUsd(spot.current.amountCents)}${brand ? ` · ${brand}` : ""}`
     : `from ${formatUsd(spot.startCents)}`;
-  const clipId = `spot-logo-${spot.spotId}`;
+  const hitPct = ((pos.r + 6) * 2 / VIEW_W) * 100;
+  const innerPct = (pos.r / (pos.r + 6)) * 100;
 
   return (
-    <g>
-      <title>
-        {spot.name} · {priceLabel}
-      </title>
-      {logoUrl ? (
-        <clipPath id={clipId}>
-          <circle cx={pos.x} cy={pos.y} r={pos.r} />
-        </clipPath>
-      ) : null}
-      <circle
-        cx={pos.x}
-        cy={pos.y}
-        r={pos.r + 6}
-        fill="transparent"
-        role="button"
-        tabIndex={0}
+    <>
+      <button
+        type="button"
         aria-label={`${spot.name}, ${priceLabel}`}
-        className="cursor-pointer"
-        onClick={() => onSelect(spot.spotId)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelect(spot.spotId);
-          }
+        title={`${spot.name} · ${priceLabel}`}
+        className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer bg-transparent p-0"
+        style={{
+          left: `${pctX(pos.x)}%`,
+          top: `${pctY(pos.y)}%`,
+          width: `${hitPct}%`,
         }}
-      />
-      {logoUrl ? (
-        <>
-          <circle
-            cx={pos.x}
-            cy={pos.y}
-            r={pos.r + 2}
-            fill="none"
-            stroke={selected ? "#e23d2a" : "#f3efe7"}
-            strokeWidth={selected ? 2 : 1}
-            className="pointer-events-none"
-          />
-          <image
-            href={logoUrl}
-            x={pos.x - pos.r}
-            y={pos.y - pos.r}
-            width={pos.r * 2}
-            height={pos.r * 2}
-            preserveAspectRatio="xMidYMid slice"
-            clipPath={`url(#${clipId})`}
-            className="pointer-events-none"
-          />
-        </>
-      ) : (
-        <>
-          <circle
-            cx={pos.x}
-            cy={pos.y}
-            r={pos.r}
-            fill={selected ? "#e23d2a" : "#f3efe7"}
-            stroke={selected ? "#f3efe7" : "#e23d2a"}
-            strokeWidth={2}
-            className="pointer-events-none"
-          />
-          <text
-            x={pos.x}
-            y={pos.y + 1}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize="11"
-            fontFamily="ui-sans-serif, system-ui, sans-serif"
-            fill={selected ? "#ffffff" : "#0b0b0b"}
-            className="pointer-events-none"
-          >
-            {spot.spotId}
-          </text>
-        </>
-      )}
+        onClick={() => onSelect(spot.spotId)}
+      >
+        <span
+          className={`mx-auto block overflow-hidden rounded-full ${
+            selected
+              ? "ring-2 ring-accent"
+              : logoUrl
+                ? "ring-1 ring-[#f3efe7]"
+                : "ring-2 ring-accent"
+          } ${logoUrl ? "" : selected ? "bg-accent text-white" : "bg-[#f3efe7] text-[#0b0b0b]"}`}
+          style={{ width: `${innerPct}%`, aspectRatio: "1" }}
+        >
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-[11px] leading-none">
+              {spot.spotId}
+            </span>
+          )}
+        </span>
+      </button>
       {brand ? (
-        <text
-          x={pos.x}
-          y={pos.y + pos.r + 11}
-          textAnchor="middle"
-          fontSize="8"
-          fontFamily="ui-sans-serif, system-ui, sans-serif"
-          fill="#e23d2a"
-          className="pointer-events-none"
+        <span
+          className="pointer-events-none absolute z-10 -translate-x-1/2 text-center text-[8px] leading-none text-accent"
+          style={{
+            left: `${pctX(pos.x)}%`,
+            top: `${pctY(pos.y + pos.r + 11)}%`,
+          }}
         >
           {truncate(brand)}
-        </text>
+        </span>
       ) : null}
-    </g>
+    </>
+  );
+}
+
+function BodyPanel({
+  label,
+  ariaLabel,
+  back,
+  photoUrl,
+  spots,
+  selectedId,
+  onSelect,
+}: {
+  label: string;
+  ariaLabel: string;
+  back?: boolean;
+  photoUrl?: string | null;
+  spots: Spot[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+}) {
+  return (
+    <figure className="flex flex-col items-center gap-3">
+      <figcaption className="text-xs tracking-[0.2em] uppercase text-muted">
+        {label}
+      </figcaption>
+      <div
+        className="relative w-full max-w-[280px] overflow-hidden bg-[#0b0b0b]"
+        style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <svg
+            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+            className="absolute inset-0 h-full w-full"
+            aria-hidden
+          >
+            <Figure back={back} />
+          </svg>
+        )}
+        {spots.map((spot) => (
+          <SpotMarker
+            key={spot.spotId}
+            spot={spot}
+            selected={selectedId === spot.spotId}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
+    </figure>
   );
 }
 
@@ -157,10 +186,14 @@ export function BodyMap({
   spots,
   selectedId,
   onSelect,
+  frontPhotoUrl,
+  backPhotoUrl,
 }: {
   spots: Spot[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  frontPhotoUrl?: string | null;
+  backPhotoUrl?: string | null;
 }) {
   const front = spots.filter(
     (spot) => spot.view === "front" || spot.view === null,
@@ -169,48 +202,23 @@ export function BodyMap({
 
   return (
     <div className="grid gap-10 sm:grid-cols-2">
-      <figure className="flex flex-col items-center gap-3">
-        <figcaption className="text-xs tracking-[0.2em] uppercase text-muted">
-          Front
-        </figcaption>
-        <svg
-          viewBox="0 0 200 420"
-          className="h-auto w-full max-w-[280px]"
-          role="img"
-          aria-label="Front body spots"
-        >
-          <Figure />
-          {front.map((spot) => (
-            <SpotButton
-              key={spot.spotId}
-              spot={spot}
-              selected={selectedId === spot.spotId}
-              onSelect={onSelect}
-            />
-          ))}
-        </svg>
-      </figure>
-      <figure className="flex flex-col items-center gap-3">
-        <figcaption className="text-xs tracking-[0.2em] uppercase text-muted">
-          Back
-        </figcaption>
-        <svg
-          viewBox="0 0 200 420"
-          className="h-auto w-full max-w-[280px]"
-          role="img"
-          aria-label="Back body spots"
-        >
-          <Figure back />
-          {back.map((spot) => (
-            <SpotButton
-              key={spot.spotId}
-              spot={spot}
-              selected={selectedId === spot.spotId}
-              onSelect={onSelect}
-            />
-          ))}
-        </svg>
-      </figure>
+      <BodyPanel
+        label="Front"
+        ariaLabel="Front body spots"
+        photoUrl={frontPhotoUrl}
+        spots={front}
+        selectedId={selectedId}
+        onSelect={onSelect}
+      />
+      <BodyPanel
+        label="Back"
+        ariaLabel="Back body spots"
+        back
+        photoUrl={backPhotoUrl}
+        spots={back}
+        selectedId={selectedId}
+        onSelect={onSelect}
+      />
     </div>
   );
 }

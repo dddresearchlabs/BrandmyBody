@@ -35,6 +35,32 @@ export function isDurationDays(value: unknown): value is DurationDays {
   return value === 1 || value === 3 || value === 7 || value === 14;
 }
 
+export type WearMonths = 1 | 3 | 6 | 9 | 12 | 18 | 24;
+
+export const HOME_WEAR_MONTHS: WearMonths = 12;
+
+export const WEAR_OPTIONS = [
+  { months: 1 as const, label: "1 month" },
+  { months: 3 as const, label: "3 months" },
+  { months: 6 as const, label: "6 months" },
+  { months: 9 as const, label: "9 months" },
+  { months: 12 as const, label: "12 months" },
+  { months: 18 as const, label: "18 months" },
+  { months: 24 as const, label: "24 months" },
+];
+
+export function isWearMonths(value: unknown): value is WearMonths {
+  return WEAR_OPTIONS.some((option) => option.months === value);
+}
+
+export function wearLabel(months: WearMonths) {
+  return months === 1 ? "1 month" : `${months} months`;
+}
+
+export function wornForCopy(months: WearMonths) {
+  return `worn for ${wearLabel(months)}`;
+}
+
 export type Listing = {
   id: string;
   displayName: string;
@@ -42,9 +68,11 @@ export type Listing = {
   scope: ListingScope;
   spots: ListingSpot[];
   durationDays: DurationDays;
+  wearMonths: WearMonths;
   endsAt: string;
   createdAt: string;
   photoUrl?: string | null;
+  photoBackUrl?: string | null;
   refundError?: string | null;
   chargesEnabled?: boolean;
 };
@@ -54,6 +82,7 @@ export type CreateListingInput = {
   socials: ListingSocials;
   scope: ListingScope;
   durationDays: DurationDays;
+  wearMonths: WearMonths;
   bodyPriceDollars?: number;
   spots?: { spotId: number; priceDollars: number }[];
 };

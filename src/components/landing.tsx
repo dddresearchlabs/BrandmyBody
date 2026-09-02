@@ -6,8 +6,11 @@ import { SiteNav } from "@/components/site-nav";
 import type { Auction, Spot } from "@/lib/auction";
 import { dollars, formatUsd } from "@/lib/auction";
 import {
+  HOME_WEAR_MONTHS,
   listingToAuction,
   socialHref,
+  wearLabel,
+  wornForCopy,
   type Listing,
 } from "@/lib/listings";
 import { assertImageFile } from "@/lib/image-file";
@@ -21,50 +24,54 @@ const NAV = [
   { href: "#faq", label: "FAQ" },
 ] as const;
 
-const STEPS = [
-  {
-    n: "01",
-    title: "Pick a spot and bid",
-    body: "Choose a logo placement. Your bid must beat the current price by $10. A 20% deposit is due now, $5,000 minimum. Refunded if you are outbid or refused.",
-  },
-  {
-    n: "02",
-    title: "Pay and get approved",
-    body: "Your bid stays invisible until the deposit is paid and the logo is approved. Anything non-offensive is allowed; we can refuse any bid.",
-  },
-  {
-    n: "03",
-    title: "Win, ink, wear a year",
-    body: "Highest bid at close wins even if the goal is missed. The remaining 80% is due on a 7-day Payment Link. The logo is printed as an ink tattoo and worn for 365 days. There will be a video of the tattoo being placed.",
-  },
-] as const;
+function howItWorks(wearMonths: Listing["wearMonths"]) {
+  return [
+    {
+      n: "01",
+      title: "Pick a spot and bid",
+      body: "Choose a logo placement. Your bid must beat the current price by $10. A 20% deposit is due now, $5,000 minimum. Refunded if you are outbid or refused.",
+    },
+    {
+      n: "02",
+      title: "Pay and get approved",
+      body: "Your bid stays invisible until the deposit is paid and the logo is approved. Anything non-offensive is allowed; we can refuse any bid.",
+    },
+    {
+      n: "03",
+      title: `Win, ink, wear ${wearLabel(wearMonths)}`,
+      body: `Highest bid at close wins even if the goal is missed. The remaining 80% is due on a 7-day Payment Link. The logo is printed as an ink tattoo and ${wornForCopy(wearMonths)}. There will be a video of the tattoo being placed.`,
+    },
+  ];
+}
 
-const FAQS = [
-  {
-    q: "What am I buying?",
-    a: "A paid logo placement on my body, printed as an ink tattoo and shown in person and in photos. It is not an endorsement and not a promise of impressions.",
-  },
-  {
-    q: "How do bids work?",
-    a: "A bid must beat the current price by $10. Bids are invisible until the deposit is paid and the logo is approved. A bid in the last 10 minutes extends close by 10 minutes.",
-  },
-  {
-    q: "What is the deposit?",
-    a: "20% of the bid, minimum $5,000. Refunded if you are outbid or the bid is refused.",
-  },
-  {
-    q: "What if the goal is missed?",
-    a: "The highest bid at close still wins.",
-  },
-  {
-    q: "When is the rest due?",
-    a: "The remaining 80% is charged after close on a 7-day Payment Link.",
-  },
-  {
-    q: "How long is the placement worn?",
-    a: "365 days / 1 year. There will be a video of the tattoo being placed.",
-  },
-] as const;
+function faqs(wearMonths: Listing["wearMonths"]) {
+  return [
+    {
+      q: "What am I buying?",
+      a: "A paid logo placement on my body, printed as an ink tattoo and shown in person and in photos. It is not an endorsement and not a promise of impressions.",
+    },
+    {
+      q: "How do bids work?",
+      a: "A bid must beat the current price by $10. Bids are invisible until the deposit is paid and the logo is approved. A bid in the last 10 minutes extends close by 10 minutes.",
+    },
+    {
+      q: "What is the deposit?",
+      a: "20% of the bid, minimum $5,000. Refunded if you are outbid or the bid is refused.",
+    },
+    {
+      q: "What if the goal is missed?",
+      a: "The highest bid at close still wins.",
+    },
+    {
+      q: "When is the rest due?",
+      a: "The remaining 80% is charged after close on a 7-day Payment Link.",
+    },
+    {
+      q: "How long is the placement worn?",
+      a: `${wearLabel(wearMonths)}. There will be a video of the tattoo being placed.`,
+    },
+  ];
+}
 
 function useCountdown(endsAt: string | null) {
   const [now, setNow] = useState<number | null>(null);
@@ -119,6 +126,9 @@ export function Landing({
   const [modalOpen, setModalOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const wearMonths = listing?.wearMonths ?? HOME_WEAR_MONTHS;
+  const steps = howItWorks(wearMonths);
+  const faqItems = faqs(wearMonths);
 
   useEffect(() => {
     if (listing) {
@@ -291,7 +301,7 @@ export function Landing({
             <h2 className="font-serif text-4xl">The body</h2>
             <p className="mt-3 max-w-lg text-muted">
               Ten placements. Click a spot to select it. Front, back, and a leg
-              area. Worn for 365 days.
+              area. Worn for {wearLabel(wearMonths)}.
             </p>
             <div className="mt-12">
               {auction ? (
@@ -299,6 +309,8 @@ export function Landing({
                   spots={auction.spots}
                   selectedId={selectedId}
                   onSelect={openSpot}
+                  frontPhotoUrl={listing?.photoUrl}
+                  backPhotoUrl={listing?.photoBackUrl}
                 />
               ) : (
                 <div className="h-[420px] rounded-lg border border-line" />
@@ -399,7 +411,7 @@ export function Landing({
           <div className="mx-auto max-w-6xl px-5">
             <h2 className="font-serif text-4xl">How it works</h2>
             <ol className="mt-12 grid gap-10 sm:grid-cols-3">
-              {STEPS.map((step) => (
+              {steps.map((step) => (
                 <li key={step.n}>
                   <p className="font-mono text-xs text-accent">{step.n}</p>
                   <h3 className="mt-3 font-serif text-2xl">{step.title}</h3>
@@ -414,7 +426,7 @@ export function Landing({
           <div className="mx-auto max-w-6xl px-5">
             <h2 className="font-serif text-4xl">FAQ</h2>
             <div className="mt-10 divide-y divide-line border-y border-line">
-              {FAQS.map((item) => (
+              {faqItems.map((item) => (
                 <details key={item.q} className="group py-5">
                   <summary className="cursor-pointer list-none font-medium [&::-webkit-details-marker]:hidden">
                     {item.q}
@@ -443,6 +455,7 @@ export function Landing({
             titleId={titleId}
             spot={selected ?? auction?.spots[0] ?? null}
             listing={listing}
+            wearMonths={wearMonths}
             stripeKeyMode={stripeKeyMode}
             onClose={() => setModalOpen(false)}
           />
@@ -493,12 +506,14 @@ function GetSpotModal({
   titleId,
   spot,
   listing,
+  wearMonths,
   stripeKeyMode,
   onClose,
 }: {
   titleId: string;
   spot: Spot | null;
   listing?: Listing;
+  wearMonths: Listing["wearMonths"];
   stripeKeyMode?: StripeKeyMode | null;
   onClose: () => void;
 }) {
@@ -617,7 +632,7 @@ function GetSpotModal({
         <p className="mt-3 text-sm text-muted">Loading spots…</p>
       )}
       <p className="mt-3 text-sm text-muted">
-        Winning logos are printed as ink tattoos and worn for 365 days. Paid
+        Winning logos are printed as ink tattoos and {wornForCopy(wearMonths)}. Paid
         placement, not an endorsement.
       </p>
       {listing && !listing.chargesEnabled ? (

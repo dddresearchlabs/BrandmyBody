@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
-import { DURATION_OPTIONS, type DurationDays } from "@/lib/listings";
+import {
+  DURATION_OPTIONS,
+  WEAR_OPTIONS,
+  type DurationDays,
+  type WearMonths,
+} from "@/lib/listings";
 import { HARDCODED_SPOTS } from "@/lib/spots";
 import { assertImageFile } from "@/lib/image-file";
 
@@ -13,6 +18,7 @@ export function ListForm() {
   const router = useRouter();
   const [scope, setScope] = useState<"entire" | "selected">("entire");
   const [durationDays, setDurationDays] = useState<DurationDays>(7);
+  const [wearMonths, setWearMonths] = useState<WearMonths>(12);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [savedHref, setSavedHref] = useState<string | null>(null);
@@ -51,13 +57,16 @@ export function ListForm() {
           }))
         : [];
 
-    const photo = form.get("photo");
-    if (photo instanceof File && photo.size > 0) {
-      try {
-        assertImageFile(photo);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not upload photo");
-        return;
+    const frontPhoto = form.get("photo");
+    const backPhoto = form.get("photoBack");
+    for (const file of [frontPhoto, backPhoto]) {
+      if (file instanceof File && file.size > 0) {
+        try {
+          assertImageFile(file);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not upload photo");
+          return;
+        }
       }
     }
 
@@ -73,6 +82,7 @@ export function ListForm() {
           socials,
           scope,
           durationDays,
+          wearMonths,
           bodyPriceDollars,
           spots,
         }),
@@ -91,25 +101,34 @@ export function ListForm() {
         return;
       }
 
-      if (photo instanceof File && photo.size > 0) {
+      const photoErrors: string[] = [];
+      for (const [file, view, label] of [
+        [frontPhoto, "front", "Front photo"],
+        [backPhoto, "back", "Back photo"],
+      ] as const) {
+        if (!(file instanceof File) || file.size === 0) continue;
         const upload = new FormData();
         upload.set("listingId", data.listing.id);
-        upload.set("file", photo);
+        upload.set("file", file);
+        upload.set("view", view);
         const photoRes = await fetch("/api/uploads/listing-photo", {
           method: "POST",
           body: upload,
         });
         const photoData = (await photoRes.json()) as { error?: string };
         if (!photoRes.ok) {
-          setSavedHref(`/b/${data.listing.id}`);
-          setError(
+          photoErrors.push(
             photoData.error
-              ? `Listing saved. Photo could not be uploaded: ${photoData.error}`
-              : "Listing saved. Photo could not be uploaded.",
+              ? `${label} could not be uploaded: ${photoData.error}`
+              : `${label} could not be uploaded.`,
           );
-          setSubmitting(false);
-          return;
         }
+      }
+      if (photoErrors.length > 0) {
+        setSavedHref(`/b/${data.listing.id}`);
+        setError(`Listing saved. ${photoErrors.join(" ")}`);
+        setSubmitting(false);
+        return;
       }
 
       router.push(`/b/${data.listing.id}`);
@@ -133,10 +152,21 @@ export function ListForm() {
       </label>
 
       <label className="text-sm">
-        Photo
+        Front photo
         <span className="text-muted"> (optional)</span>
         <input
           name="photo"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className={`${fieldClass} file:mr-3 file:rounded file:border-0 file:bg-line file:px-2 file:py-1 file:text-foreground`}
+        />
+      </label>
+
+      <label className="text-sm">
+        Back photo
+        <span className="text-muted"> (optional)</span>
+        <input
+          name="photoBack"
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           className={`${fieldClass} file:mr-3 file:rounded file:border-0 file:bg-line file:px-2 file:py-1 file:text-foreground`}
@@ -198,6 +228,22 @@ export function ListForm() {
           />
           Selected parts
         </label>
+      </fieldset>
+
+      <fieldset className="grid gap-3">
+        <legend className="text-sm">Wear for</legend>
+        {WEAR_OPTIONS.map((option) => (
+          <label key={option.months} className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="wearMonths"
+              required
+              checked={wearMonths === option.months}
+              onChange={() => setWearMonths(option.months)}
+            />
+            {option.label}
+          </label>
+        ))}
       </fieldset>
 
       <fieldset className="grid gap-3">

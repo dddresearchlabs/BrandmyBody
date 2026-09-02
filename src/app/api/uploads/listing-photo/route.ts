@@ -34,12 +34,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const view = String(form.get("view") ?? "front").trim() === "back"
+      ? "back"
+      : "front";
     const url = await uploadPublicImage({
       bucket: LISTING_PHOTOS_BUCKET,
-      path: `${listingId}/photo.${ext}`,
+      path: `${listingId}/${view === "back" ? "photo-back" : "photo"}.${ext}`,
       file,
     });
-    await setListingPhotoUrl(listingId, user.id, url);
+    await setListingPhotoUrl(listingId, user.id, url, view);
     return Response.json({ url });
   } catch (err) {
     const message = publicError(err, "Could not upload listing photo");

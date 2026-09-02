@@ -1,5 +1,5 @@
-import { insertListing, fetchLiveListings } from "@/lib/listings-db";
 import { getSessionUser } from "@/lib/auth";
+import { insertListing, fetchLiveListings } from "@/lib/listings-db";
 import { publicError } from "@/lib/public-error";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       },
       scope: payload.scope === "selected" ? "selected" : "entire",
       durationDays: Number(payload.durationDays) as 1 | 3 | 7 | 14,
+      wearMonths: Number(payload.wearMonths) as 1 | 3 | 6 | 9 | 12 | 18 | 24,
       bodyPriceDollars: Number(payload.bodyPriceDollars),
       spots: Array.isArray(payload.spots)
         ? payload.spots.map((row) => {
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
     const validation = [
       "Display name is required",
       "Choose an auction length",
+      "Choose how long logos are worn",
       "Starting price is required",
       "Select at least one spot",
       "Each selected spot needs a starting price",

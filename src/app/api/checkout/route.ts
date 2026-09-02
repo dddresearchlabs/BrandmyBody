@@ -3,9 +3,11 @@ import { getHomeAuction } from "@/lib/auction-store";
 import { asLiveBid, minNextCents } from "@/lib/auction";
 import { applicationFeeCents } from "@/lib/connect";
 import {
+  HOME_WEAR_MONTHS,
   isListingClosed,
   parseSocials,
   socialsToMeta,
+  wornForCopy,
   type Listing,
 } from "@/lib/listings";
 import { fetchListingPayouts } from "@/lib/lister-accounts";
@@ -130,6 +132,7 @@ export async function POST(request: Request) {
     brandName: meta(brandName),
     email: meta(email),
     buyerSocials: socialsToMeta(buyerSocials),
+    wearMonths: String(listing?.wearMonths ?? HOME_WEAR_MONTHS),
   };
 
   if (listing) {
@@ -178,8 +181,7 @@ export async function POST(request: Request) {
               name: listing
                 ? `Brand my Body · ${listing.displayName} · ${catalog.name} deposit`
                 : `Brand my Body · ${catalog.name} deposit`,
-              description:
-                "20% deposit for an ink tattoo logo placement. Paid placement, not an endorsement.",
+              description: `20% deposit for an ink tattoo logo placement, ${wornForCopy(listing?.wearMonths ?? HOME_WEAR_MONTHS)}. Paid placement, not an endorsement.`,
             },
           },
         },

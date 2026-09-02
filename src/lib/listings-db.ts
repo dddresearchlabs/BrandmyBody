@@ -3,8 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { asLiveBid, type LiveBid } from "@/lib/auction";
 import {
   dollarsToCents,
+  HOME_WEAR_MONTHS,
   isDurationDays,
   isListingClosed,
+  isWearMonths,
   type CreateListingInput,
   type Listing,
   type ListingSocials,
@@ -23,15 +25,17 @@ type ListingRow = {
   tiktok: string | null;
   website: string | null;
   duration_days: number;
+  wear_months: number | null;
   ends_at: string;
   entire_body: boolean;
   status: string;
   photo_url: string | null;
+  photo_back_url: string | null;
   owner_id: string | null;
 };
 
 const LISTING_SELECT =
-  "id, display_name, x_handle, instagram, tiktok, website, duration_days, ends_at, entire_body, status, photo_url, owner_id";
+  "id, display_name, x_handle, instagram, tiktok, website, duration_days, wear_months, ends_at, entire_body, status, photo_url, photo_back_url, owner_id";
 
 type ListingSpotRow = {
   id: string;
@@ -125,9 +129,13 @@ function assemble(
     scope: listing.entire_body ? "entire" : "selected",
     spots: mapped,
     durationDays,
+    wearMonths: isWearMonths(listing.wear_months)
+      ? listing.wear_months
+      : HOME_WEAR_MONTHS,
     endsAt,
     createdAt: endsAt,
     photoUrl: asPublicUrl(listing.photo_url),
+    photoBackUrl: asPublicUrl(listing.photo_back_url),
   };
 }
 
@@ -298,6 +306,9 @@ export async function insertListing(ownerId: string, input: CreateListingInput) 
   if (!isDurationDays(input.durationDays)) {
     throw new Error("Choose an auction length");
   }
+  if (!isWearMonths(input.wearMonths)) {
+    throw new Error("Choose how long logos are worn");
+  }
 
   const socials: ListingSocials = {
     x: input.socials.x.trim(),
@@ -322,6 +333,7 @@ export async function insertListing(ownerId: string, input: CreateListingInput) 
       tiktok: socials.tiktok,
       website: socials.website,
       duration_days: input.durationDays,
+      wear_months: input.wearMonths,
       ends_at: endsAt,
       entire_body: input.scope === "entire",
       status: "live",
@@ -366,15 +378,18 @@ export async function setListingPhotoUrl(
   listingId: string,
   ownerId: string,
   photoUrl: string,
+  view: "front" | "back" = "front",
 ) {
   const url = asPublicUrl(photoUrl);
   if (!url) {
     throw new Error("Could not save listing photo");
   }
   const supabase = createAdminClient();
+  const patch =
+    view === "back" ? { photo_back_url: url } : { photo_url: url };
   const { data, error } = await supabase
     .from("listings")
-    .update({ photo_url: url })
+    .update(patch)
     .eq("id", listingId)
     .eq("owner_id", ownerId)
     .select("id")

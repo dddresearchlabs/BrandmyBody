@@ -2,6 +2,10 @@
 
 Notable changes to Brand my Body, grouped by the date they first landed.
 
+## 2026-09-02
+
+- Lister-controlled wear time: `/list` requires Wear for (1, 3, 6, 9, 12, 18, or 24 months), saved as `listings.wear_months`. `/b/[id]`, FAQ, How it works, Get a spot, and Checkout description use that listing’s copy (`worn for 6 months`). Home demo stays 12 months. Optional Front photo (`photo_url`) and Back photo (`photo_back_url`); on `/b/[id]` and home, a photo for that view is the FRONT/BACK panel background with numbered spots in percent. No photo keeps the silhouette. Winning logo still draws on the spot. Photos are not required to publish. SQL: `supabase/listing-wear-photos.sql`.
+
 ## 2026-09-01
 
 - Connect onboarding uses Stripe Accounts v2 (`POST /v2/core/accounts`) with Express dashboard and recipient `stripe_transfers`, not Accounts v1 `type=express`. `/connect/callback` sets `charges_enabled` when the account can receive transfers. Marketplace Checkout still destination-charges 10% of the deposit using the v2 account id. Stripe error text shows if Connect fails.
