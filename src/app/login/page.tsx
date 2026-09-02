@@ -36,8 +36,7 @@ export default async function LoginPage({ searchParams }: Props) {
         </p>
         <h1 className="mt-3 font-serif text-4xl">Log in</h1>
         <p className="mt-3 text-muted">
-          Email a magic link. No password. Use the link or the 6-digit code for
-          tests.
+          Sign in with email and password. A magic link is also available.
         </p>
         <LoginForm next={next} initialError={initialError} />
       </main>

@@ -19,10 +19,43 @@ export function LoginForm({
 }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState<"password" | "otp" | "verify" | null>(null);
+
+  async function signInWithPassword(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = email.trim();
+    if (!EMAIL_RE.test(trimmed)) {
+      setError("Email is required");
+      return;
+    }
+    if (!password) {
+      setError("Password is required");
+      return;
+    }
+    setError(null);
+    setBusy("password");
+    try {
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: trimmed,
+        password,
+      });
+      if (signInError) {
+        setError(publicError(signInError, "Could not sign in"));
+        setBusy(null);
+        return;
+      }
+      router.replace(next);
+      router.refresh();
+    } catch (err) {
+      setError(publicError(err, "Could not sign in"));
+      setBusy(null);
+    }
+  }
 
   async function sendLink(event: FormEvent) {
     event.preventDefault();
@@ -32,7 +65,7 @@ export function LoginForm({
       return;
     }
     setError(null);
-    setSubmitting(true);
+    setBusy("otp");
     try {
       const supabase = createClient();
       const origin = window.location.origin;
@@ -48,14 +81,14 @@ export function LoginForm({
       });
       if (sendError) {
         setError(publicError(sendError, "Could not send login email"));
-        setSubmitting(false);
+        setBusy(null);
         return;
       }
       setSent(true);
     } catch (err) {
       setError(publicError(err, "Could not send login email"));
     }
-    setSubmitting(false);
+    setBusy(null);
   }
 
   async function verifyCode(event: FormEvent) {
@@ -67,7 +100,7 @@ export function LoginForm({
       return;
     }
     setError(null);
-    setSubmitting(true);
+    setBusy("verify");
     try {
       const supabase = createClient();
       const { error: verifyError } = await supabase.auth.verifyOtp({
@@ -77,20 +110,20 @@ export function LoginForm({
       });
       if (verifyError) {
         setError(publicError(verifyError, "Could not verify code"));
-        setSubmitting(false);
+        setBusy(null);
         return;
       }
       router.replace(next);
       router.refresh();
     } catch (err) {
       setError(publicError(err, "Could not verify code"));
-      setSubmitting(false);
+      setBusy(null);
     }
   }
 
   return (
-    <div className="mt-10 grid gap-6">
-      <form className="grid gap-4" onSubmit={sendLink}>
+    <div className="mt-10 grid gap-8">
+      <form className="grid gap-4" onSubmit={signInWithPassword}>
         <label className="text-sm">
           Email
           <input
@@ -103,44 +136,67 @@ export function LoginForm({
             className={fieldClass}
           />
         </label>
+        <label className="text-sm">
+          Password
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className={fieldClass}
+          />
+        </label>
         <button
           type="submit"
-          disabled={submitting}
+          disabled={busy !== null}
           className="rounded-full bg-accent px-5 py-3 text-sm text-white hover:brightness-110 disabled:opacity-50"
         >
-          {submitting && !sent ? "Sending…" : sent ? "Send again" : "Email me a login link"}
+          {busy === "password" ? "Signing in…" : "Sign in"}
         </button>
       </form>
 
-      {sent ? (
-        <form className="grid gap-4 border-t border-line pt-6" onSubmit={verifyCode}>
-          <p className="text-sm text-muted">
-            Check your inbox for the link. For tests, paste the 6-digit code from
-            the same email.
-          </p>
-          <label className="text-sm">
-            Login code
-            <input
-              name="code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              className={fieldClass}
-            />
-          </label>
+      {error ? <p className="text-sm text-accent">{error}</p> : null}
+
+      <div className="grid gap-4 border-t border-line pt-8">
+        <p className="text-sm text-muted">
+          Or email a magic link. Use the link or the 6-digit code for tests.
+        </p>
+        <form className="grid gap-4" onSubmit={sendLink}>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={busy !== null}
             className="rounded-full border border-line px-5 py-3 text-sm hover:border-accent disabled:opacity-50"
           >
-            {submitting ? "Verifying…" : "Sign in with code"}
+            {busy === "otp" ? "Sending…" : sent ? "Send again" : "Email me a login link"}
           </button>
         </form>
-      ) : null}
 
-      {error ? <p className="text-sm text-accent">{error}</p> : null}
+        {sent ? (
+          <form className="grid gap-4" onSubmit={verifyCode}>
+            <label className="text-sm">
+              Login code
+              <input
+                name="code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                className={fieldClass}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy !== null}
+              className="rounded-full border border-line px-5 py-3 text-sm hover:border-accent disabled:opacity-50"
+            >
+              {busy === "verify" ? "Verifying…" : "Sign in with code"}
+            </button>
+          </form>
+        ) : null}
+      </div>
     </div>
   );
 }
