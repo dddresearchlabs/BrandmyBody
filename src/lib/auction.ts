@@ -9,8 +9,8 @@ export type LiveBid = {
   stripePaymentIntentId?: string;
 };
 
-/** Min next bid beats current by $10. */
-export const BID_INCREMENT_CENTS = 1000;
+/** Min next bid beats current by $25. */
+export const BID_INCREMENT_CENTS = 2500;
 
 /** Last 10 minutes of an auction: a paid bid extends close by 10 minutes. */
 export const ANTI_SNIPE_MS = 10 * 60 * 1000;

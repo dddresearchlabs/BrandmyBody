@@ -29,7 +29,7 @@ function howItWorks(wearMonths: Listing["wearMonths"]) {
     {
       n: "01",
       title: "Pick a spot and bid",
-      body: "Choose a logo placement. Your bid must beat the current price by $10. A 20% deposit is due now, $5,000 minimum. Refunded if you are outbid or refused.",
+      body: "Choose a logo placement. Your bid must beat the current price by $25. A 20% deposit is due now. Refunded if you are outbid or the listing is removed.",
     },
     {
       n: "02",
@@ -52,11 +52,11 @@ function faqs(wearMonths: Listing["wearMonths"]) {
     },
     {
       q: "How do bids work?",
-      a: "A bid must beat the current price by $10. Bids are invisible until the deposit is paid and the logo is approved. A bid in the last 10 minutes extends close by 10 minutes.",
+      a: "A bid must beat the current price by $25. Bids are invisible until the deposit is paid and the logo is approved. A bid in the last 10 minutes extends close by 10 minutes.",
     },
     {
       q: "What is the deposit?",
-      a: "20% of the bid, minimum $5,000. Refunded if you are outbid or the bid is refused.",
+      a: "20% of the bid, due now. Refunded if you are outbid or the listing is removed.",
     },
     {
       q: "What if the goal is missed?",
@@ -365,7 +365,7 @@ export function Landing({
           <div className="mx-auto max-w-6xl px-5">
             <h2 className="font-serif text-4xl">Live auction</h2>
             <p className="mt-3 text-muted">
-              Bid must beat current by $10. Prices shown from start cents / 100.
+              Bid must beat current by $25.
             </p>
             <div className="mt-8 overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -698,7 +698,7 @@ function GetSpotModal({
           {spot.name} · {spot.sizeLabel}
           <br />
           Start {formatUsd(spot.startCents)}. Min next{" "}
-          {formatUsd(spot.minNextCents)}. 20% deposit, $5,000 minimum.
+          {formatUsd(spot.minNextCents)}. 20% deposit due now.
         </p>
       ) : (
         <p className="mt-3 text-sm text-muted">Loading spots…</p>

@@ -21,7 +21,8 @@ import type Stripe from "stripe";
 export const dynamic = "force-dynamic";
 
 const DEPOSIT_PERCENT = 0.2;
-const MIN_DEPOSIT_CENTS = 1000;
+/** Stripe card charges need at least 50 cents. Not shown in the UI. */
+const STRIPE_MIN_CHARGE_CENTS = 50;
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
 function asString(value: unknown) {
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
 
   const depositCents = Math.max(
     Math.round(bidCents * DEPOSIT_PERCENT),
-    MIN_DEPOSIT_CENTS,
+    STRIPE_MIN_CHARGE_CENTS,
   );
 
   const origin = siteOrigin(request);
