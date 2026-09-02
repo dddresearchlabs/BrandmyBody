@@ -13,8 +13,10 @@ import {
 
 const CONFIRM =
   "This refunds all live deposits and takes the listing down.";
-const CLOSE_CONFIRM =
-  "This closes the auction. Live high bids win. Remaining 80% Payment Links are created. Outbid deposits are not charged.";
+const ADMIN_CLOSE_CONFIRM =
+  "This closes the auction now. Live high bids win. Remaining 80% Payment Links are created. The 20% deposit stays (no extra fee). Outbid bids are not charged.";
+const OWNER_CLOSE_CONFIRM =
+  "This takes the listing down. There are no live bids to invoice.";
 
 function RemoveButton({
   listingId,
@@ -71,19 +73,29 @@ function RemoveButton({
   );
 }
 
-function CloseButton({ listingId }: { listingId: string }) {
+function CloseButton({
+  listingId,
+  admin,
+}: {
+  listingId: string;
+  admin?: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onClose() {
     if (busy) return;
-    if (!window.confirm(CLOSE_CONFIRM)) return;
+    if (!window.confirm(admin ? ADMIN_CLOSE_CONFIRM : OWNER_CLOSE_CONFIRM)) {
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
       const res = await fetch(`/api/listings/${listingId}/close`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(admin ? { admin: true } : {}),
       });
       const data = (await res.json()) as {
         error?: string;
@@ -111,7 +123,7 @@ function CloseButton({ listingId }: { listingId: string }) {
         disabled={busy}
         className="text-sm text-accent hover:underline disabled:opacity-50"
       >
-        {busy ? "Closing…" : "Close auction"}
+        {busy ? "Closing…" : admin ? "Close auction" : "Close early"}
       </button>
       {error ? <p className="max-w-xs text-right text-sm text-accent">{error}</p> : null}
     </div>
@@ -126,11 +138,14 @@ function ListingRow({
 }) {
   const ended = isListingClosed(listing.endsAt) || listing.status === "closed";
   const removed = listing.status === "removed";
-  const canRemove = Boolean(remove) && listing.status === "live" && !ended;
-  const canClose =
+  const liveBidCount = listing.spots.filter((spot) => spot.current).length;
+  const canRemove =
+    Boolean(remove) && listing.status === "live" && liveBidCount > 0;
+  const canOwnerCloseEarly =
+    remove === "owner" && listing.status === "live" && liveBidCount === 0;
+  const canAdminClose =
     remove === "admin" &&
     !removed &&
-    ended &&
     (listing.status === "live" || Boolean(listing.closeError));
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-5">
@@ -195,7 +210,10 @@ function ListingRow({
         {canRemove ? (
           <RemoveButton listingId={listing.id} admin={remove === "admin"} />
         ) : null}
-        {canClose ? <CloseButton listingId={listing.id} /> : null}
+        {canOwnerCloseEarly ? <CloseButton listingId={listing.id} /> : null}
+        {canAdminClose ? (
+          <CloseButton listingId={listing.id} admin />
+        ) : null}
       </div>
     </li>
   );

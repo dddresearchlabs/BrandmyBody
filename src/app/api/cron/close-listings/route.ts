@@ -1,4 +1,4 @@
-import { closeEndedListing } from "@/lib/listing-close";
+import { closeListing } from "@/lib/listing-close";
 import { fetchExpiredLiveListingIds } from "@/lib/listings-db";
 import { publicError } from "@/lib/public-error";
 
@@ -20,9 +20,10 @@ export async function GET(request: Request) {
     const results = [];
     for (const listingId of ids) {
       try {
-        const closed = await closeEndedListing({
+        const closed = await closeListing({
           listingId,
           closedBy: "cron",
+          userId: "cron",
           request,
         });
         results.push({ listingId, ...closed });

@@ -1,4 +1,5 @@
 -- Close listings after ends_at: winners pay remaining 80%; platform takes 10% of the winning bid from that payment.
+-- Admin can close any live listing now. Owner can close early only with no live bids.
 -- Run in the Supabase SQL editor. Service-role writes go through API routes.
 
 alter table public.listings
@@ -10,7 +11,7 @@ alter table public.listings
 
 alter table public.listings
   add constraint listings_closed_by_check
-  check (closed_by is null or closed_by in ('cron', 'admin'));
+  check (closed_by is null or closed_by in ('cron', 'admin', 'owner'));
 
 alter table public.listing_bids
   add column if not exists stripe_payment_link_id text,

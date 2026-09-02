@@ -1,6 +1,6 @@
 import { isAdminEmail } from "@/lib/admin";
 import { getSessionUser } from "@/lib/auth";
-import { closeEndedListing } from "@/lib/listing-close";
+import { closeListing } from "@/lib/listing-close";
 import { publicError } from "@/lib/public-error";
 
 export const dynamic = "force-dynamic";
@@ -16,20 +16,33 @@ export async function POST(
   if (!user) {
     return Response.json({ error: "Sign in to close a listing" }, { status: 401 });
   }
-  if (!isAdminEmail(user.email)) {
-    return Response.json({ error: "Not allowed" }, { status: 403 });
-  }
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
     return Response.json({ error: "Unknown listing" }, { status: 400 });
   }
 
+  let asAdmin = false;
   try {
-    const result = await closeEndedListing({
+    const body = await request.json();
+    asAdmin = Boolean(
+      body && typeof body === "object" && (body as { admin?: unknown }).admin,
+    );
+  } catch {
+    asAdmin = false;
+  }
+
+  if (asAdmin && !isAdminEmail(user.email)) {
+    return Response.json({ error: "Not allowed" }, { status: 403 });
+  }
+
+  try {
+    const result = await closeListing({
       listingId: id,
-      closedBy: "admin",
+      closedBy: asAdmin ? "admin" : "owner",
+      userId: user.id,
       request,
+      asAdmin,
     });
     return Response.json({ ok: true, ...result });
   } catch (err) {
@@ -37,10 +50,14 @@ export async function POST(
     const status =
       message === "Unknown listing"
         ? 404
-        : message === "This listing has not ended" ||
-            message === "This listing was removed"
-          ? 400
-          : 503;
+        : message === "You can only close your own listings" ||
+            message === "Not allowed"
+          ? 403
+          : message === "This listing has not ended" ||
+              message === "This listing was removed" ||
+              message === "Close early is only for listings with no live bids"
+            ? 400
+            : 503;
     return Response.json({ error: message }, { status });
   }
 }

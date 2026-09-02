@@ -59,6 +59,10 @@ function faqs(wearMonths: Listing["wearMonths"]) {
       a: "20% of the bid, due now. Refunded if you are outbid or the listing is removed. There is no platform fee on the deposit.",
     },
     {
+      q: "What is the platform fee?",
+      a: "10% of the winning bid only, taken from the remaining 80% payment after close. There is no platform fee on the 20% deposit. Outbid bids are not charged.",
+    },
+    {
       q: "What if the goal is missed?",
       a: "The highest bid at close still wins.",
     },

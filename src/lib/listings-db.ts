@@ -739,16 +739,22 @@ export async function fetchExpiredLiveListingIds(now = Date.now()) {
 
 export async function markListingClosed(
   listingId: string,
-  closedBy: "cron" | "admin",
+  closedBy: "cron" | "admin" | "owner",
+  endsAt?: string,
 ) {
   const supabase = createAdminClient();
+  const now = new Date();
+  const patch: Record<string, string> = {
+    status: "closed",
+    closed_at: now.toISOString(),
+    closed_by: closedBy,
+  };
+  if (endsAt && new Date(endsAt).getTime() > now.getTime()) {
+    patch.ends_at = now.toISOString();
+  }
   const { data, error } = await supabase
     .from("listings")
-    .update({
-      status: "closed",
-      closed_at: new Date().toISOString(),
-      closed_by: closedBy,
-    })
+    .update(patch)
     .eq("id", listingId)
     .eq("status", "live")
     .select("id")

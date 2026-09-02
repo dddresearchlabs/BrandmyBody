@@ -1,39 +1,9 @@
 import "server-only";
-import { balanceCents, depositCents, winFeeCents } from "@/lib/bid-money";
+import { balanceCents, winFeeCents } from "@/lib/bid-money";
 import { publicError } from "@/lib/public-error";
 import { assertStripeTestMode, getStripe } from "@/lib/stripe";
 import { siteOrigin } from "@/lib/site-origin";
 import { wornForCopy, type WearMonths } from "@/lib/listings";
-
-export async function transferDepositToLister(input: {
-  bidId: string;
-  listingId: string;
-  bidCents: number;
-  destination: string;
-}) {
-  const amount = depositCents(input.bidCents);
-  if (amount <= 0) return { transferId: null as string | null };
-  const stripe = getStripe();
-  try {
-    const transfer = await stripe.transfers.create({
-      amount,
-      currency: "usd",
-      destination: input.destination,
-      metadata: {
-        kind: "deposit",
-        listingId: input.listingId,
-        bidId: input.bidId,
-      },
-    });
-    assertStripeTestMode(transfer);
-    return { transferId: transfer.id };
-  } catch (err) {
-    return {
-      transferId: null as string | null,
-      error: publicError(err, "Could not transfer the deposit to the lister"),
-    };
-  }
-}
 
 export async function createBalancePaymentLink(input: {
   request: Request;
