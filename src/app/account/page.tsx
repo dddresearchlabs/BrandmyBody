@@ -1,15 +1,10 @@
+import { AccountListings } from "@/app/account/account-listings";
 import { SiteNav } from "@/components/site-nav";
-import { TimeLeft } from "@/components/time-left";
-import { formatUsd } from "@/lib/auction";
+import { isAdminEmail } from "@/lib/admin";
 import { getSessionUser } from "@/lib/auth";
 import { connectStatus, connectStatusLabel } from "@/lib/connect";
-import {
-  durationLabel,
-  isListingClosed,
-  minStartCents,
-  type Listing,
-} from "@/lib/listings";
-import { fetchListingsByOwner } from "@/lib/listings-db";
+import type { Listing } from "@/lib/listings";
+import { fetchListingsByOwner, fetchLiveListings } from "@/lib/listings-db";
 import { fetchListerAccount } from "@/lib/lister-accounts";
 import { publicError } from "@/lib/public-error";
 import { redirect } from "next/navigation";
@@ -25,7 +20,9 @@ export default async function AccountPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/account");
 
+  const admin = isAdminEmail(user.email);
   let listings: Listing[] = [];
+  let adminListings: Listing[] = [];
   let error: string | null = null;
   let payoutsStatus = connectStatus({
     stripeAccountId: null,
@@ -40,6 +37,13 @@ export default async function AccountPage() {
     listings = await fetchListingsByOwner(user.id);
   } catch (err) {
     error = error ?? publicError(err, "Could not load listings");
+  }
+  if (admin) {
+    try {
+      adminListings = await fetchLiveListings();
+    } catch (err) {
+      error = error ?? publicError(err, "Could not load listings");
+    }
   }
 
   return (
@@ -68,64 +72,8 @@ export default async function AccountPage() {
 
         {error ? <p className="mt-10 text-accent">{error}</p> : null}
 
-        {!error && listings.length === 0 ? (
-          <p className="mt-10 text-muted">
-            You have no listings yet.{" "}
-            <a href="/list" className="text-accent hover:underline">
-              List a body
-            </a>
-            .
-          </p>
-        ) : null}
-
-        {!error && listings.length > 0 ? (
-          <ul className="mt-10 divide-y divide-line border-y border-line">
-            {listings.map((listing) => {
-              const closed = isListingClosed(listing.endsAt);
-              return (
-                <li
-                  key={listing.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-5"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <a
-                        href={`/b/${listing.id}`}
-                        className="font-medium hover:text-accent"
-                      >
-                        {listing.displayName}
-                      </a>
-                      {closed ? (
-                        <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">
-                          Closed
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-sm text-muted">
-                      {listing.scope === "entire" ? "Entire body" : "Selected parts"}{" "}
-                      · {listing.spots.length} spots · from{" "}
-                      {formatUsd(minStartCents(listing))} ·{" "}
-                      {durationLabel(listing.durationDays)}
-                    </p>
-                    <p className="mt-1 font-mono text-sm">
-                      <TimeLeft endsAt={listing.endsAt} />
-                    </p>
-                    {listing.refundError ? (
-                      <p className="mt-2 text-sm text-accent">
-                        {listing.refundError}
-                      </p>
-                    ) : null}
-                  </div>
-                  <a
-                    href={`/b/${listing.id}`}
-                    className="text-sm text-accent hover:underline"
-                  >
-                    View
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
+        {!error ? (
+          <AccountListings listings={listings} adminListings={adminListings} />
         ) : null}
       </main>
     </div>

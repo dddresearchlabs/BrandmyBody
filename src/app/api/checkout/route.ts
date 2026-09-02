@@ -5,6 +5,7 @@ import { applicationFeeCents } from "@/lib/connect";
 import {
   HOME_WEAR_MONTHS,
   isListingClosed,
+  isListingPublic,
   parseSocials,
   socialsToMeta,
   wornForCopy,
@@ -79,6 +80,9 @@ export async function POST(request: Request) {
     }
     if (!listing) {
       return Response.json({ error: "Unknown listing" }, { status: 400 });
+    }
+    if (!isListingPublic(listing)) {
+      return Response.json({ error: "This listing was removed" }, { status: 400 });
     }
     if (isListingClosed(listing.endsAt)) {
       return Response.json({ error: "This listing is closed" }, { status: 400 });

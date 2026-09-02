@@ -124,8 +124,11 @@ export function Landing({
     listing?.spots[0]?.spotId ?? null,
   );
   const [modalOpen, setModalOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const photoDialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const photoTitleId = useId();
   const wearMonths = listing?.wearMonths ?? HOME_WEAR_MONTHS;
   const steps = howItWorks(wearMonths);
   const faqItems = faqs(wearMonths);
@@ -167,6 +170,13 @@ export function Landing({
     if (modalOpen && !dialog.open) dialog.showModal();
     if (!modalOpen && dialog.open) dialog.close();
   }, [modalOpen]);
+
+  useEffect(() => {
+    const dialog = photoDialogRef.current;
+    if (!dialog) return;
+    if (photoOpen && !dialog.open) dialog.showModal();
+    if (!photoOpen && dialog.open) dialog.close();
+  }, [photoOpen]);
 
   const countdown = useCountdown(auction?.endsAt ?? null);
   const listingClosed = Boolean(listing && countdown.closed);
@@ -234,12 +244,37 @@ export function Landing({
               {listing.displayName}
             </p>
           ) : null}
-          {listing?.photoUrl ? (
-            <img
-              src={listing.photoUrl}
-              alt=""
-              className="mt-8 h-48 w-48 rounded-xl object-cover"
-            />
+          {listing?.photoUrl || listing?.photoBackUrl ? (
+            <div className="mt-8 flex flex-wrap gap-3">
+              {listing.photoUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(listing.photoUrl ?? null)}
+                  aria-label="View listing photo"
+                  className="block rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <img
+                    src={listing.photoUrl}
+                    alt=""
+                    className="h-48 w-48 rounded-xl object-cover"
+                  />
+                </button>
+              ) : null}
+              {listing.photoBackUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(listing.photoBackUrl ?? null)}
+                  aria-label="View back photo"
+                  className="block rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <img
+                    src={listing.photoBackUrl}
+                    alt=""
+                    className="h-48 w-48 rounded-xl object-cover"
+                  />
+                </button>
+              ) : null}
+            </div>
           ) : null}
           <p className="mt-6 max-w-xl text-lg leading-8 text-muted">
             Brands bid on logo spots. Winning logos are printed as ink tattoos
@@ -309,8 +344,6 @@ export function Landing({
                   spots={auction.spots}
                   selectedId={selectedId}
                   onSelect={openSpot}
-                  frontPhotoUrl={listing?.photoUrl}
-                  backPhotoUrl={listing?.photoBackUrl}
                 />
               ) : (
                 <div className="h-[420px] rounded-lg border border-line" />
@@ -461,6 +494,45 @@ export function Landing({
           />
         </dialog>
       ) : null}
+
+      <dialog
+        ref={photoDialogRef}
+        aria-labelledby={photoTitleId}
+        className="m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 text-foreground backdrop:bg-black/80"
+        onClose={() => setPhotoOpen(null)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setPhotoOpen(null);
+        }}
+      >
+        <div
+          className="flex h-full items-center justify-center p-6"
+          onClick={() => setPhotoOpen(null)}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-[min(92vw,56rem)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id={photoTitleId} className="sr-only">
+              Listing photo
+            </h2>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setPhotoOpen(null)}
+              className="absolute -right-2 -top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-line bg-background text-lg leading-none text-foreground hover:border-accent"
+            >
+              ×
+            </button>
+            {photoOpen ? (
+              <img
+                src={photoOpen}
+                alt=""
+                className="max-h-[85vh] w-auto max-w-full rounded-lg object-contain"
+              />
+            ) : null}
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }

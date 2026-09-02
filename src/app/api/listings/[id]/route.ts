@@ -1,4 +1,5 @@
 import { fetchListing } from "@/lib/listings-db";
+import { isListingPublic } from "@/lib/listings";
 import { publicError } from "@/lib/public-error";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export async function GET(
   const { id } = await params;
   try {
     const listing = await fetchListing(id);
-    if (!listing) {
+    if (!listing || !isListingPublic(listing)) {
       return Response.json({ error: "Listing not found" }, { status: 404 });
     }
     return Response.json({ listing });

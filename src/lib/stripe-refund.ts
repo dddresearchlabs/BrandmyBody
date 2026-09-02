@@ -51,6 +51,43 @@ export async function retrieveTestCheckoutSession(sessionId: string) {
   return session;
 }
 
+export async function refundDeposit(input: {
+  sessionId?: string | null;
+  paymentIntentId?: string | null;
+}): Promise<{ paymentIntentId: string | null; error?: string }> {
+  let paymentIntentId = input.paymentIntentId?.trim() || null;
+  const sessionId = input.sessionId?.trim() || null;
+
+  try {
+    if (!paymentIntentId && sessionId) {
+      const session = await retrieveTestCheckoutSession(sessionId);
+      paymentIntentId = paymentIntentIdFromSession(session);
+    }
+    if (!paymentIntentId) {
+      throw new Error("Could not refund deposit: missing PaymentIntent");
+    }
+
+    const stripe = getStripe();
+    await stripe.refunds.create({ payment_intent: paymentIntentId });
+    return { paymentIntentId };
+  } catch (err) {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code?: unknown }).code ?? "")
+        : "";
+    if (
+      code === "charge_already_refunded" ||
+      /already been refunded/i.test(err instanceof Error ? err.message : "")
+    ) {
+      return { paymentIntentId };
+    }
+    return {
+      paymentIntentId,
+      error: publicError(err, "Could not refund the deposit"),
+    };
+  }
+}
+
 export async function refundOutbidPayment(input: {
   previousSessionId?: string | null;
   previousPaymentIntentId?: string | null;
@@ -69,37 +106,30 @@ export async function refundOutbidPayment(input: {
     return { paymentIntentId: null };
   }
 
-  try {
-    if (!prevPi && prevSession) {
+  if (!prevPi && prevSession) {
+    try {
       const session = await retrieveTestCheckoutSession(prevSession);
       prevPi = paymentIntentIdFromSession(session);
+    } catch (err) {
+      return {
+        paymentIntentId: null,
+        error: publicError(err, "Could not refund the previous bidder"),
+      };
     }
-    if (!prevPi) {
-      throw new Error("Could not refund previous bid: missing PaymentIntent");
-    }
-    if (newPi && prevPi === newPi) {
-      return { paymentIntentId: null };
-    }
+  }
+  if (newPi && prevPi && prevPi === newPi) {
+    return { paymentIntentId: null };
+  }
 
-    const stripe = getStripe();
-    await stripe.refunds.create({ payment_intent: prevPi });
-    return { paymentIntentId: prevPi };
-  } catch (err) {
-    const code =
-      err && typeof err === "object" && "code" in err
-        ? String((err as { code?: unknown }).code ?? "")
-        : "";
-    if (
-      code === "charge_already_refunded" ||
-      /already been refunded/i.test(
-        err instanceof Error ? err.message : "",
-      )
-    ) {
-      return { paymentIntentId: prevPi };
-    }
+  const result = await refundDeposit({
+    sessionId: prevPi ? null : prevSession,
+    paymentIntentId: prevPi,
+  });
+  if (result.error) {
     return {
-      paymentIntentId: prevPi,
-      error: publicError(err, "Could not refund the previous bidder"),
+      paymentIntentId: result.paymentIntentId,
+      error: result.error,
     };
   }
+  return result;
 }

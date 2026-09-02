@@ -4,7 +4,9 @@ Notable changes to Brand my Body, grouped by the date they first landed.
 
 ## 2026-09-02
 
-- Lister-controlled wear time: `/list` requires Wear for (1, 3, 6, 9, 12, 18, or 24 months), saved as `listings.wear_months`. `/b/[id]`, FAQ, How it works, Get a spot, and Checkout description use that listing’s copy (`worn for 6 months`). Home demo stays 12 months. Optional Front photo (`photo_url`) and Back photo (`photo_back_url`); on `/b/[id]` and home, a photo for that view is the FRONT/BACK panel background with numbered spots in percent. No photo keeps the silhouette. Winning logo still draws on the spot. Photos are not required to publish. SQL: `supabase/listing-wear-photos.sql`.
+- Lister-controlled wear time: `/list` requires Wear for (1, 3, 6, 9, 12, 18, or 24 months), saved as `listings.wear_months`. `/b/[id]`, FAQ, How it works, Get a spot, and Checkout description use that listing’s copy (`worn for 6 months`). Home demo stays 12 months. Optional Front photo (`photo_url`) and Back photo (`photo_back_url`). Photos are not required to publish. SQL: `supabase/listing-wear-photos.sql`.
+- Listing photos are not the spot-map background. FRONT/BACK maps stay silhouette + numbered spots. The listing photo under “Your brand, on my body.” opens a lightbox (backdrop or X to close) and is not a bid target.
+- Remove listing: `/account` live rows have “Remove listing” (confirm refunds live deposits and takes the listing down). `POST /api/listings/[id]/remove` checks the session owner. Emails in `ADMIN_EMAILS` also see every live listing with “Admin remove”. Sets `status = removed`, refunds live Stripe test deposits (`status = refunded`), hides the listing from `/browse` and `/b/[id]`. Refund errors show in the UI (no secrets). SQL: `supabase/listing-remove.sql`. Connect unchanged; test keys only.
 
 ## 2026-09-01
 

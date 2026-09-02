@@ -47,14 +47,6 @@ function truncate(value: string, max = 10) {
   return `${trimmed.slice(0, max - 1)}…`;
 }
 
-function pctX(x: number) {
-  return (x / VIEW_W) * 100;
-}
-
-function pctY(y: number) {
-  return (y / VIEW_H) * 100;
-}
-
 function SpotMarker({
   spot,
   selected,
@@ -82,8 +74,8 @@ function SpotMarker({
         title={`${spot.name} · ${priceLabel}`}
         className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer bg-transparent p-0"
         style={{
-          left: `${pctX(pos.x)}%`,
-          top: `${pctY(pos.y)}%`,
+          left: `${(pos.x / VIEW_W) * 100}%`,
+          top: `${(pos.y / VIEW_H) * 100}%`,
           width: `${hitPct}%`,
         }}
         onClick={() => onSelect(spot.spotId)}
@@ -115,8 +107,8 @@ function SpotMarker({
         <span
           className="pointer-events-none absolute z-10 -translate-x-1/2 text-center text-[8px] leading-none text-accent"
           style={{
-            left: `${pctX(pos.x)}%`,
-            top: `${pctY(pos.y + pos.r + 11)}%`,
+            left: `${(pos.x / VIEW_W) * 100}%`,
+            top: `${((pos.y + pos.r + 11) / VIEW_H) * 100}%`,
           }}
         >
           {truncate(brand)}
@@ -130,7 +122,6 @@ function BodyPanel({
   label,
   ariaLabel,
   back,
-  photoUrl,
   spots,
   selectedId,
   onSelect,
@@ -138,7 +129,6 @@ function BodyPanel({
   label: string;
   ariaLabel: string;
   back?: boolean;
-  photoUrl?: string | null;
   spots: Spot[];
   selectedId: number | null;
   onSelect: (id: number) => void;
@@ -149,26 +139,18 @@ function BodyPanel({
         {label}
       </figcaption>
       <div
-        className="relative w-full max-w-[280px] overflow-hidden bg-[#0b0b0b]"
+        className="relative w-full max-w-[280px]"
         style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}
         role="img"
         aria-label={ariaLabel}
       >
-        {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <svg
-            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-            className="absolute inset-0 h-full w-full"
-            aria-hidden
-          >
-            <Figure back={back} />
-          </svg>
-        )}
+        <svg
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          className="absolute inset-0 h-full w-full"
+          aria-hidden
+        >
+          <Figure back={back} />
+        </svg>
         {spots.map((spot) => (
           <SpotMarker
             key={spot.spotId}
@@ -186,14 +168,10 @@ export function BodyMap({
   spots,
   selectedId,
   onSelect,
-  frontPhotoUrl,
-  backPhotoUrl,
 }: {
   spots: Spot[];
   selectedId: number | null;
   onSelect: (id: number) => void;
-  frontPhotoUrl?: string | null;
-  backPhotoUrl?: string | null;
 }) {
   const front = spots.filter(
     (spot) => spot.view === "front" || spot.view === null,
@@ -205,7 +183,6 @@ export function BodyMap({
       <BodyPanel
         label="Front"
         ariaLabel="Front body spots"
-        photoUrl={frontPhotoUrl}
         spots={front}
         selectedId={selectedId}
         onSelect={onSelect}
@@ -214,7 +191,6 @@ export function BodyMap({
         label="Back"
         ariaLabel="Back body spots"
         back
-        photoUrl={backPhotoUrl}
         spots={back}
         selectedId={selectedId}
         onSelect={onSelect}

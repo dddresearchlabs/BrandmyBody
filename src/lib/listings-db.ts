@@ -136,6 +136,7 @@ function assemble(
     createdAt: endsAt,
     photoUrl: asPublicUrl(listing.photo_url),
     photoBackUrl: asPublicUrl(listing.photo_back_url),
+    status: listing.status === "removed" ? "removed" : "live",
   };
 }
 
@@ -433,6 +434,15 @@ export async function recordPaidListingBid(input: {
   if (!listing) {
     throw new Error("Unknown listing");
   }
+  if (listing.status === "removed") {
+    return {
+      already: false,
+      accepted: false,
+      closed: true,
+      previous: [],
+      endsAt: listing.endsAt,
+    };
+  }
   const catalogSpot = listing.spots.find((spot) => spot.spotId === input.spotId);
   if (!catalogSpot) {
     throw new Error("That spot is not on this listing");
@@ -619,4 +629,79 @@ export async function markListingBidRefundError(id: string, message: string) {
     .update({ refund_error: message.slice(0, 280) })
     .eq("id", id);
   if (error) fail(error, "Could not save refund error");
+}
+
+export async function fetchListingOwner(id: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .select("id, owner_id, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) fail(error, "Could not load listing");
+  if (!data) return null;
+  const row = data as { id: string; owner_id: string | null; status: string };
+  return {
+    id: row.id,
+    ownerId: row.owner_id,
+    status: row.status === "removed" ? ("removed" as const) : ("live" as const),
+  };
+}
+
+export async function markListingRemoved(
+  listingId: string,
+  removedBy: "user" | "admin",
+) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .update({
+      status: "removed",
+      removed_at: new Date().toISOString(),
+      removed_by: removedBy,
+    })
+    .eq("id", listingId)
+    .eq("status", "live")
+    .select("id")
+    .maybeSingle();
+  if (error) fail(error, "Could not remove listing");
+  if (!data) {
+    throw new Error("This listing is not live");
+  }
+}
+
+export async function listLiveBidsForRefund(listingId: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listing_bids")
+    .select(BID_SELECT)
+    .eq("listing_id", listingId)
+    .eq("status", "live")
+    .is("refunded_at", null);
+  if (error) fail(error, "Could not load listing bids");
+  return ((data ?? []) as ListingBidRow[]).map((bid) => ({
+    id: bid.id,
+    stripeSessionId: bid.stripe_session_id,
+    stripePaymentIntentId: bid.stripe_payment_intent_id,
+  }));
+}
+
+export async function markLiveBidRefunded(
+  id: string,
+  paymentIntentId: string | null,
+) {
+  const supabase = createAdminClient();
+  const patch: Record<string, string | null> = {
+    status: "refunded",
+    refunded_at: new Date().toISOString(),
+    refund_error: null,
+  };
+  if (paymentIntentId) patch.stripe_payment_intent_id = paymentIntentId;
+  const { error } = await supabase
+    .from("listing_bids")
+    .update(patch)
+    .eq("id", id)
+    .eq("status", "live")
+    .is("refunded_at", null);
+  if (error) fail(error, "Could not save refund");
 }

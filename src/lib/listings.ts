@@ -75,7 +75,10 @@ export type Listing = {
   photoBackUrl?: string | null;
   refundError?: string | null;
   chargesEnabled?: boolean;
+  status: ListingStatus;
 };
+
+export type ListingStatus = "live" | "removed";
 
 export type CreateListingInput = {
   displayName: string;
@@ -127,6 +130,10 @@ export function listingToAuction(listing: Listing): Auction {
 
 export function isListingClosed(endsAt: string, now = Date.now()) {
   return new Date(endsAt).getTime() <= now;
+}
+
+export function isListingPublic(listing: Pick<Listing, "status">) {
+  return listing.status === "live";
 }
 
 export function timeLeftLabel(endsAt: string, now = Date.now()) {
