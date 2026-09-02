@@ -75,7 +75,8 @@ export type Listing = {
   photoBackUrl?: string | null;
   refundError?: string | null;
   closeError?: string | null;
-  balanceLinks?: { label: string; url: string }[] | null;
+  balanceLinks?: { label: string; url: string; dueAt?: string | null }[] | null;
+  forfeitNotes?: string[] | null;
   chargesEnabled?: boolean;
   status: ListingStatus;
 };

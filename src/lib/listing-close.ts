@@ -5,11 +5,19 @@ import {
   fetchListing,
   fetchListingOwner,
   listLiveBidsForClose,
+  listOverdueUnpaidWinners,
+  listWinnersNeedingEmail,
+  markBidForfeited,
   markListingClosed,
   saveBidCloseResult,
 } from "@/lib/listings-db";
 import { fetchListingPayouts } from "@/lib/lister-accounts";
-import { createBalancePaymentLink } from "@/lib/stripe-balance";
+import {
+  createBalancePaymentLink,
+  deactivateBalancePaymentLink,
+} from "@/lib/stripe-balance";
+import { balanceDueAt } from "@/lib/bid-money";
+import { sendWinnerPayEmail } from "@/lib/winner-email";
 
 export type CloseBy = "cron" | "admin" | "owner";
 
@@ -28,9 +36,12 @@ async function invoiceWinners(input: {
 
   for (const bid of winners) {
     const parts: string[] = [];
+    let payId = bid.stripePaymentLinkId;
+    let payUrl = bid.stripePaymentLinkUrl;
+    let dueAt = bid.balanceDueAt;
     if (!destination) {
       parts.push("Lister has not connected payouts");
-    } else if (!bid.stripePaymentLinkId) {
+    } else if (!payId) {
       const link = await createBalancePaymentLink({
         request: input.request,
         bidId: bid.id,
@@ -45,9 +56,34 @@ async function invoiceWinners(input: {
       if (link.error) {
         parts.push(link.error);
       } else if (link.id && link.url) {
+        payId = link.id;
+        payUrl = link.url;
+        dueAt = dueAt ?? balanceDueAt();
         await saveBidCloseResult(bid.id, {
-          stripePaymentLinkId: link.id,
-          stripePaymentLinkUrl: link.url,
+          stripePaymentLinkId: payId,
+          stripePaymentLinkUrl: payUrl,
+          balanceDueAt: dueAt,
+        });
+      }
+    } else if (!dueAt && payUrl) {
+      dueAt = balanceDueAt();
+      await saveBidCloseResult(bid.id, { balanceDueAt: dueAt });
+    }
+    if (payUrl && dueAt && !bid.winNotifiedAt) {
+      const emailed = await sendWinnerPayEmail({
+        email: bid.email ?? "",
+        listingName: listing.displayName,
+        spotName: bid.spotName,
+        brandName: bid.brandName ?? "",
+        bidCents: bid.amountCents,
+        payUrl,
+        dueAt,
+      });
+      if (emailed.error) {
+        parts.push(emailed.error);
+      } else {
+        await saveBidCloseResult(bid.id, {
+          winNotifiedAt: new Date().toISOString(),
         });
       }
     }
@@ -150,4 +186,51 @@ export async function closeListingIfEnded(listingId: string, request: Request) {
     request,
   });
   return (await fetchListing(listingId)) ?? listing;
+}
+
+export async function notifyPendingWinners() {
+  const winners = await listWinnersNeedingEmail();
+  const results = [];
+  for (const bid of winners) {
+    const listing = await fetchListing(bid.listingId);
+    const payUrl = bid.stripePaymentLinkUrl;
+    if (!listing || !payUrl) continue;
+    const dueAt = bid.balanceDueAt ?? balanceDueAt();
+    if (!bid.balanceDueAt) {
+      await saveBidCloseResult(bid.id, { balanceDueAt: dueAt });
+    }
+    const emailed = await sendWinnerPayEmail({
+      email: bid.email ?? "",
+      listingName: listing.displayName,
+      spotName: bid.spotName,
+      brandName: bid.brandName ?? "",
+      bidCents: bid.amountCents,
+      payUrl,
+      dueAt,
+    });
+    if (emailed.error) {
+      await saveBidCloseResult(bid.id, { closeError: emailed.error });
+      results.push({ bidId: bid.id, error: emailed.error });
+      continue;
+    }
+    await saveBidCloseResult(bid.id, {
+      winNotifiedAt: new Date().toISOString(),
+      closeError: null,
+    });
+    results.push({ bidId: bid.id, emailed: true });
+  }
+  return results;
+}
+
+export async function forfeitOverdueWinners() {
+  const winners = await listOverdueUnpaidWinners();
+  const results = [];
+  for (const bid of winners) {
+    if (bid.stripePaymentLinkId) {
+      await deactivateBalancePaymentLink(bid.stripePaymentLinkId);
+    }
+    await markBidForfeited(bid.id);
+    results.push({ bidId: bid.id, forfeited: true });
+  }
+  return results;
 }

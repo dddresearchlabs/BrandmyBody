@@ -1,4 +1,4 @@
-import { closeListing } from "@/lib/listing-close";
+import { closeListing, forfeitOverdueWinners, notifyPendingWinners } from "@/lib/listing-close";
 import { fetchExpiredLiveListingIds } from "@/lib/listings-db";
 import { publicError } from "@/lib/public-error";
 
@@ -17,24 +17,32 @@ export async function GET(request: Request) {
 
   try {
     const ids = await fetchExpiredLiveListingIds();
-    const results = [];
+    const closed = [];
     for (const listingId of ids) {
       try {
-        const closed = await closeListing({
+        const result = await closeListing({
           listingId,
           closedBy: "cron",
           userId: "cron",
           request,
         });
-        results.push({ listingId, ...closed });
+        closed.push({ listingId, ...result });
       } catch (err) {
-        results.push({
+        closed.push({
           listingId,
           error: publicError(err, "Could not close listing"),
         });
       }
     }
-    return Response.json({ ok: true, closed: results.length, results });
+    const emailed = await notifyPendingWinners();
+    const forfeited = await forfeitOverdueWinners();
+    return Response.json({
+      ok: true,
+      closed: closed.length,
+      emailed: emailed.length,
+      forfeited: forfeited.length,
+      results: { closed, emailed, forfeited },
+    });
   } catch (err) {
     return Response.json(
       { error: publicError(err, "Could not close listings") },

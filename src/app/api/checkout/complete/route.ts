@@ -3,6 +3,7 @@ import { publicError } from "@/lib/public-error";
 
 export const dynamic = "force-dynamic";
 
+/** Backup writer if the Stripe webhook is late or missing. Idempotent on session id. */
 export async function POST(request: Request) {
   let body: unknown;
   try {

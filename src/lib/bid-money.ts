@@ -4,6 +4,13 @@ export const BALANCE_PERCENT = 0.8;
 /** Platform fee is 10% of the winning bid, taken from the remaining 80% payment. */
 export const WIN_FEE_PERCENT = 0.1;
 export const STRIPE_MIN_CHARGE_CENTS = 50;
+/** Winners have 7 days to pay the remaining 80% or they forfeit the deposit. */
+export const BALANCE_DUE_DAYS = 7;
+export const BALANCE_DUE_MS = BALANCE_DUE_DAYS * 24 * 60 * 60 * 1000;
+
+export function balanceDueAt(from = Date.now()) {
+  return new Date(from + BALANCE_DUE_MS).toISOString();
+}
 
 export function depositCents(bidCents: number) {
   return Math.max(

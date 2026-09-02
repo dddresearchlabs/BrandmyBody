@@ -1,5 +1,5 @@
 const SECRETISH =
-  /service.?role|secret|apikey|authorization|bearer\s+[a-z0-9._-]+|eyj[a-z0-9_-]{20,}|sk_(live|test)_|supabase\.co\/[^\s]+/i;
+  /service.?role|secret|apikey|authorization|bearer\s+[a-z0-9._-]+|eyj[a-z0-9_-]{20,}|sk_(live|test)_|whsec_|supabase\.co\/[^\s]+/i;
 
 function collect(err: unknown, depth = 0): string[] {
   if (!err || depth > 4) return [];

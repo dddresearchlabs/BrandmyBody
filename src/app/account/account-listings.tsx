@@ -15,7 +15,7 @@ import {
 const CONFIRM =
   "This refunds all live deposits and takes the listing down.";
 const ADMIN_CLOSE_CONFIRM =
-  "This closes the auction now. Live high bids win. Remaining 80% Payment Links are created. The 20% deposit stays (no extra fee). Outbid bids are not charged.";
+  "This closes the auction now. Live high bids win. Each winner is emailed a 7-day Payment Link for the remaining 80%. If they do not pay in 7 days, they lose the 20% deposit.";
 const OWNER_CLOSE_CONFIRM =
   "This takes the listing down. There are no live bids to invoice.";
 
@@ -217,6 +217,13 @@ function ListingRow({
             ))}
           </ul>
         ) : null}
+        {listing.forfeitNotes?.length ? (
+          <ul className="mt-2 space-y-1 text-sm text-muted">
+            {listing.forfeitNotes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       <div className="flex flex-col items-end gap-2">
         {removed ? null : (
@@ -272,8 +279,9 @@ export function AccountListings({
         <section className="mt-16">
           <h2 className="font-serif text-2xl">Admin</h2>
           <p className="mt-2 text-sm text-muted">
-            Close auction ends a live listing now. Winners get the remaining 80%
-            Payment Link. The daily job also closes listings after the timer hits
+            Close auction ends a live listing now. Winners are emailed a 7-day
+            Payment Link for the remaining 80%. Unpaid winners lose the 20%
+            deposit. The daily job also closes listings after the timer hits
             zero (00:00 UTC).
           </p>
           {adminListings.length > 0 ? (

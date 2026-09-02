@@ -81,3 +81,14 @@ export async function createBalancePaymentLink(input: {
     };
   }
 }
+
+export async function deactivateBalancePaymentLink(linkId: string) {
+  const id = linkId.trim();
+  if (!id.startsWith("plink_")) return;
+  try {
+    const stripe = getStripe();
+    await stripe.paymentLinks.update(id, { active: false });
+  } catch {
+    // Link may already be inactive or missing.
+  }
+}

@@ -40,7 +40,7 @@ function howItWorks(wearMonths: Listing["wearMonths"]) {
     {
       n: "03",
       title: `Win, ink, wear ${wearLabel(wearMonths)}`,
-      body: `Highest bid at close wins even if the goal is missed. When time runs out, the auction closes. The remaining 80% is due on a 7-day Payment Link. Platform takes 10% of the winning bid only, from that final payment. The logo is printed as an ink tattoo and ${wornForCopy(wearMonths)}. There will be a video of the tattoo being placed.`,
+      body: `Highest bid at close wins even if the goal is missed. When time runs out, the auction closes. Winners are emailed a 7-day Payment Link for the remaining 80%. If they do not pay in 7 days, they lose the 20% deposit. Platform takes 10% of the winning bid only, from that final payment. The logo is printed as an ink tattoo and ${wornForCopy(wearMonths)}. There will be a video of the tattoo being placed.`,
     },
   ];
 }
@@ -69,7 +69,7 @@ function faqs(wearMonths: Listing["wearMonths"]) {
     },
     {
       q: "When is the rest due?",
-      a: "When the timer runs out, the auction closes. Each winning bid is billed the remaining 80% on a 7-day Payment Link. Platform takes 10% of the winning bid only, from that payment. Outbid bids are not charged.",
+      a: "When the timer runs out, the auction closes. Each winner is emailed a 7-day Payment Link for the remaining 80%. If they do not pay in 7 days, they lose the 20% deposit. Platform takes 10% of the winning bid only, from that payment. Outbid bids are not charged.",
     },
     {
       q: "How long is the placement worn?",

@@ -30,6 +30,21 @@ export function stripeKeyMode(): StripeKeyMode | null {
   return null;
 }
 
+/** Signing secret for POST /api/webhooks/stripe. Never log the return value. */
+export function stripeWebhookSecret() {
+  const raw =
+    process.env.STRIPE_WEBHOOK_SECRET?.trim().replace(/^["']|["']$/g, "") ?? "";
+  if (!raw) {
+    throw new Error("Missing STRIPE_WEBHOOK_SECRET");
+  }
+  if (!raw.startsWith("whsec_")) {
+    throw new Error(
+      "Stripe webhook secret must be a whsec_ signing secret (test mode endpoint).",
+    );
+  }
+  return raw;
+}
+
 export function getStripe() {
   const secretKey = stripeTestSecret();
 
