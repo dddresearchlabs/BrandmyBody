@@ -74,11 +74,13 @@ export type Listing = {
   photoUrl?: string | null;
   photoBackUrl?: string | null;
   refundError?: string | null;
+  closeError?: string | null;
+  balanceLinks?: { label: string; url: string }[] | null;
   chargesEnabled?: boolean;
   status: ListingStatus;
 };
 
-export type ListingStatus = "live" | "removed";
+export type ListingStatus = "live" | "removed" | "closed";
 
 export type CreateListingInput = {
   displayName: string;
@@ -118,7 +120,7 @@ export function listingToAuction(listing: Listing): Auction {
   return {
     endsAt: listing.endsAt,
     goalCents: spots.reduce((sum, spot) => sum + spot.startCents, 0),
-    closed: isListingClosed(listing.endsAt),
+    closed: isListingClosed(listing.endsAt) || listing.status === "closed",
     raisedCents: spots.reduce(
       (sum, spot) => sum + (spot.current?.amountCents ?? 0),
       0,
@@ -133,7 +135,7 @@ export function isListingClosed(endsAt: string, now = Date.now()) {
 }
 
 export function isListingPublic(listing: Pick<Listing, "status">) {
-  return listing.status === "live";
+  return listing.status === "live" || listing.status === "closed";
 }
 
 export function timeLeftLabel(endsAt: string, now = Date.now()) {

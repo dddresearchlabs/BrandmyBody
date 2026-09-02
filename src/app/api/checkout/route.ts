@@ -1,7 +1,7 @@
 import { fetchListing } from "@/lib/listings-db";
 import { getHomeAuction } from "@/lib/auction-store";
 import { asLiveBid, minNextCents } from "@/lib/auction";
-import { applicationFeeCents } from "@/lib/connect";
+import { depositCents } from "@/lib/bid-money";
 import {
   HOME_WEAR_MONTHS,
   isListingClosed,
@@ -16,13 +16,9 @@ import { siteOrigin } from "@/lib/site-origin";
 import { getStripe, stripeKeyMode } from "@/lib/stripe";
 import { spotById } from "@/lib/spots";
 import { publicError } from "@/lib/public-error";
-import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
 
-const DEPOSIT_PERCENT = 0.2;
-/** Stripe card charges need at least 50 cents. Not shown in the UI. */
-const STRIPE_MIN_CHARGE_CENTS = 50;
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
 function asString(value: unknown) {
@@ -85,7 +81,7 @@ export async function POST(request: Request) {
     if (!isListingPublic(listing)) {
       return Response.json({ error: "This listing was removed" }, { status: 400 });
     }
-    if (isListingClosed(listing.endsAt)) {
+    if (listing.status === "closed" || isListingClosed(listing.endsAt)) {
       return Response.json({ error: "This listing is closed" }, { status: 400 });
     }
     const listingSpot = listing.spots.find((spot) => spot.spotId === spotId);
@@ -124,13 +120,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Email is required" }, { status: 400 });
   }
 
-  const depositCents = Math.max(
-    Math.round(bidCents * DEPOSIT_PERCENT),
-    STRIPE_MIN_CHARGE_CENTS,
-  );
+  const depositAmount = depositCents(bidCents);
 
   const origin = siteOrigin(request);
   const metadata: Record<string, string> = {
+    kind: "deposit",
     listingId: listing?.id ?? "home",
     spotId: String(catalog.spotId),
     bidCents: String(bidCents),
@@ -145,7 +139,6 @@ export async function POST(request: Request) {
     metadata.listerSocials = socialsToMeta(listing.socials);
   }
 
-  let paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData | undefined;
   if (listing) {
     let payouts;
     try {
@@ -159,14 +152,6 @@ export async function POST(request: Request) {
     if (!payouts?.chargesEnabled || !payouts.stripeAccountId) {
       return listerPayoutsResponse();
     }
-    const fee = Math.min(
-      applicationFeeCents(depositCents),
-      Math.max(0, depositCents - 1),
-    );
-    paymentIntentData = {
-      application_fee_amount: fee,
-      transfer_data: { destination: payouts.stripeAccountId },
-    };
   }
 
   try {
@@ -181,7 +166,7 @@ export async function POST(request: Request) {
           quantity: 1,
           price_data: {
             currency: "usd",
-            unit_amount: depositCents,
+            unit_amount: depositAmount,
             product_data: {
               name: listing
                 ? `Brand my Body · ${listing.displayName} · ${catalog.name} deposit`
@@ -192,9 +177,6 @@ export async function POST(request: Request) {
         },
       ],
       metadata,
-      ...(paymentIntentData
-        ? { payment_intent_data: paymentIntentData }
-        : {}),
     });
 
     if (!session.url) {

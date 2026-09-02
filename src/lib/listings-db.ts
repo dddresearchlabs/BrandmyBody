@@ -61,6 +61,12 @@ type ListingBidRow = {
   stripe_payment_intent_id: string | null;
   refunded_at: string | null;
   refund_error: string | null;
+  stripe_payment_link_id: string | null;
+  stripe_payment_link_url: string | null;
+  balance_paid_at: string | null;
+  deposit_transferred_at: string | null;
+  stripe_transfer_id: string | null;
+  close_error: string | null;
 };
 
 function fail(err: unknown, fallback: string): never {
@@ -136,7 +142,12 @@ function assemble(
     createdAt: endsAt,
     photoUrl: asPublicUrl(listing.photo_url),
     photoBackUrl: asPublicUrl(listing.photo_back_url),
-    status: listing.status === "removed" ? "removed" : "live",
+    status:
+      listing.status === "removed"
+        ? "removed"
+        : listing.status === "closed"
+          ? "closed"
+          : "live",
   };
 }
 
@@ -233,6 +244,7 @@ export async function fetchListingsByOwner(ownerId: string) {
   const ids = rows.map((row) => row.id);
   const { spots, bids } = await spotsAndBids(ids);
   const refundErrors = await fetchRefundErrors(ids);
+  const closeExtras = await fetchCloseExtras(ids);
   const account = await fetchListerAccount(ownerId);
   return rows.map((row) => {
     const listing = assemble(
@@ -241,10 +253,13 @@ export async function fetchListingsByOwner(ownerId: string) {
       bids.filter((bid) => bid.listing_id === row.id),
     );
     const messages = refundErrors.get(row.id);
+    const extra = closeExtras.get(row.id);
     return {
       ...listing,
       chargesEnabled: account.chargesEnabled,
       refundError: messages?.length ? messages.join(" ") : null,
+      closeError: extra?.closeError ?? null,
+      balanceLinks: extra?.balanceLinks ?? null,
     };
   });
 }
@@ -402,7 +417,7 @@ export async function setListingPhotoUrl(
 }
 
 const BID_SELECT =
-  "id, listing_id, spot_id, amount_cents, brand_name, website, x_handle, email, logo_url, status, stripe_session_id, stripe_payment_intent_id, refunded_at, refund_error";
+  "id, listing_id, spot_id, amount_cents, brand_name, website, x_handle, email, logo_url, status, stripe_session_id, stripe_payment_intent_id, refunded_at, refund_error, stripe_payment_link_id, stripe_payment_link_url, balance_paid_at, deposit_transferred_at, stripe_transfer_id, close_error";
 
 export type OutbidRefundTarget = {
   id: string;
@@ -434,7 +449,7 @@ export async function recordPaidListingBid(input: {
   if (!listing) {
     throw new Error("Unknown listing");
   }
-  if (listing.status === "removed") {
+  if (listing.status === "removed" || listing.status === "closed") {
     return {
       already: false,
       accepted: false,
@@ -644,7 +659,12 @@ export async function fetchListingOwner(id: string) {
   return {
     id: row.id,
     ownerId: row.owner_id,
-    status: row.status === "removed" ? ("removed" as const) : ("live" as const),
+    status:
+      row.status === "removed"
+        ? ("removed" as const)
+        : row.status === "closed"
+          ? ("closed" as const)
+          : ("live" as const),
   };
 }
 
@@ -704,4 +724,209 @@ export async function markLiveBidRefunded(
     .eq("status", "live")
     .is("refunded_at", null);
   if (error) fail(error, "Could not save refund");
+}
+
+export async function fetchExpiredLiveListingIds(now = Date.now()) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .select("id")
+    .eq("status", "live")
+    .lte("ends_at", new Date(now).toISOString());
+  if (error) fail(error, "Could not load listings");
+  return ((data ?? []) as { id: string }[]).map((row) => row.id);
+}
+
+export async function markListingClosed(
+  listingId: string,
+  closedBy: "cron" | "admin",
+) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .update({
+      status: "closed",
+      closed_at: new Date().toISOString(),
+      closed_by: closedBy,
+    })
+    .eq("id", listingId)
+    .eq("status", "live")
+    .select("id")
+    .maybeSingle();
+  if (error) fail(error, "Could not close listing");
+  return Boolean(data);
+}
+
+export type CloseBid = {
+  id: string;
+  listingId: string;
+  amountCents: number;
+  brandName: string | null;
+  email: string | null;
+  spotName: string;
+  stripeSessionId: string | null;
+  stripePaymentIntentId: string | null;
+  stripePaymentLinkId: string | null;
+  stripePaymentLinkUrl: string | null;
+  balancePaidAt: string | null;
+  depositTransferredAt: string | null;
+  stripeTransferId: string | null;
+  closeError: string | null;
+};
+
+export async function listLiveBidsForClose(listingId: string): Promise<CloseBid[]> {
+  const supabase = createAdminClient();
+  const spotsRes = await supabase
+    .from("listing_spots")
+    .select("id, name, spot_key")
+    .eq("listing_id", listingId);
+  if (spotsRes.error) fail(spotsRes.error, "Could not load listing spots");
+  const names = new Map<string, string>();
+  for (const row of (spotsRes.data ?? []) as ListingSpotRow[]) {
+    names.set(row.id, row.name?.trim() || row.spot_key);
+  }
+
+  const { data, error } = await supabase
+    .from("listing_bids")
+    .select(BID_SELECT)
+    .eq("listing_id", listingId)
+    .eq("status", "live");
+  if (error) fail(error, "Could not load listing bids");
+  return ((data ?? []) as ListingBidRow[]).map((bid) => ({
+    id: bid.id,
+    listingId: bid.listing_id,
+    amountCents: bid.amount_cents,
+    brandName: bid.brand_name,
+    email: bid.email,
+    spotName: names.get(bid.spot_id) ?? "spot",
+    stripeSessionId: bid.stripe_session_id,
+    stripePaymentIntentId: bid.stripe_payment_intent_id,
+    stripePaymentLinkId: bid.stripe_payment_link_id,
+    stripePaymentLinkUrl: bid.stripe_payment_link_url,
+    balancePaidAt: bid.balance_paid_at,
+    depositTransferredAt: bid.deposit_transferred_at,
+    stripeTransferId: bid.stripe_transfer_id,
+    closeError: bid.close_error,
+  }));
+}
+
+export async function saveBidCloseResult(
+  id: string,
+  patch: {
+    stripePaymentLinkId?: string | null;
+    stripePaymentLinkUrl?: string | null;
+    depositTransferredAt?: string | null;
+    stripeTransferId?: string | null;
+    closeError?: string | null;
+  },
+) {
+  const supabase = createAdminClient();
+  const row: Record<string, string | null> = {};
+  if (patch.stripePaymentLinkId !== undefined) {
+    row.stripe_payment_link_id = patch.stripePaymentLinkId;
+  }
+  if (patch.stripePaymentLinkUrl !== undefined) {
+    row.stripe_payment_link_url = patch.stripePaymentLinkUrl;
+  }
+  if (patch.depositTransferredAt !== undefined) {
+    row.deposit_transferred_at = patch.depositTransferredAt;
+  }
+  if (patch.stripeTransferId !== undefined) {
+    row.stripe_transfer_id = patch.stripeTransferId;
+  }
+  if (patch.closeError !== undefined) {
+    row.close_error = patch.closeError;
+  }
+  const { error } = await supabase.from("listing_bids").update(row).eq("id", id);
+  if (error) fail(error, "Could not save close result");
+}
+
+export async function markBalancePaid(bidId: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listing_bids")
+    .update({ balance_paid_at: new Date().toISOString(), close_error: null })
+    .eq("id", bidId)
+    .eq("status", "live")
+    .is("balance_paid_at", null)
+    .select("id, listing_id, amount_cents, brand_name")
+    .maybeSingle();
+  if (error) fail(error, "Could not record remaining payment");
+  if (data) {
+    return {
+      already: false as const,
+      listingId: (data as ListingBidRow).listing_id,
+      amountCents: (data as ListingBidRow).amount_cents,
+      brandName: (data as ListingBidRow).brand_name,
+    };
+  }
+  const existing = await supabase
+    .from("listing_bids")
+    .select("id, listing_id, amount_cents, brand_name, balance_paid_at, status")
+    .eq("id", bidId)
+    .maybeSingle();
+  if (existing.error) fail(existing.error, "Could not record remaining payment");
+  const row = existing.data as ListingBidRow | null;
+  if (!row || row.status !== "live") return null;
+  return {
+    already: true as const,
+    listingId: row.listing_id,
+    amountCents: row.amount_cents,
+    brandName: row.brand_name,
+  };
+}
+
+async function fetchCloseExtras(listingIds: string[]) {
+  const map = new Map<
+    string,
+    { closeError: string | null; balanceLinks: { label: string; url: string }[] }
+  >();
+  if (listingIds.length === 0) return map;
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listing_bids")
+    .select(
+      "listing_id, brand_name, stripe_payment_link_url, close_error, status",
+    )
+    .in("listing_id", listingIds)
+    .eq("status", "live");
+  if (error) {
+    if (/stripe_payment_link_url|close_error|column/i.test(error.message ?? "")) {
+      return map;
+    }
+    fail(error, "Could not load close status");
+  }
+  for (const raw of data ?? []) {
+    const row = raw as {
+      listing_id?: unknown;
+      brand_name?: unknown;
+      stripe_payment_link_url?: unknown;
+      close_error?: unknown;
+    };
+    if (typeof row.listing_id !== "string") continue;
+    const current = map.get(row.listing_id) ?? {
+      closeError: null,
+      balanceLinks: [],
+    };
+    if (typeof row.close_error === "string" && row.close_error.trim()) {
+      current.closeError = current.closeError
+        ? `${current.closeError} ${row.close_error.trim()}`
+        : row.close_error.trim();
+    }
+    if (
+      typeof row.stripe_payment_link_url === "string" &&
+      row.stripe_payment_link_url.startsWith("http")
+    ) {
+      const brand =
+        typeof row.brand_name === "string" && row.brand_name.trim()
+          ? row.brand_name.trim()
+          : "Winner";
+      current.balanceLinks.push({
+        label: `${brand} · remaining 80%`,
+        url: row.stripe_payment_link_url,
+      });
+    }
+    map.set(row.listing_id, current);
+  }
+  return map;
 }

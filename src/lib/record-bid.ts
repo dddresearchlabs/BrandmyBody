@@ -8,6 +8,7 @@ import {
   setHomeBidLogo,
 } from "@/lib/auction-store";
 import {
+  markBalancePaid,
   markListingBidRefunded,
   markListingBidRefundError,
   recordPaidListingBid,
@@ -25,6 +26,7 @@ import { spotById } from "@/lib/spots";
 export type RecordedCheckout = {
   unpaid: boolean;
   already: boolean;
+  kind?: "deposit" | "balance";
   error?: string;
   refundError?: string;
   listingId: string;
@@ -121,6 +123,59 @@ async function refundPrevious(input: {
   return result.error;
 }
 
+async function recordBalanceCheckout(
+  session: Stripe.Checkout.Session,
+): Promise<RecordedCheckout> {
+  const metadata = session.metadata ?? {};
+  const bidId = asString(metadata.bidId);
+  const listingId = asString(metadata.listingId);
+  const spotName = asString(metadata.spotName);
+  const href = listingId ? `/b/${listingId}` : "/";
+  if (!bidId) {
+    return emptyResult({
+      kind: "balance",
+      listingId: listingId || "home",
+      spotName,
+      href,
+      error: "Checkout session is missing bid metadata",
+    });
+  }
+  try {
+    const paid = await markBalancePaid(bidId);
+    if (!paid) {
+      return emptyResult({
+        kind: "balance",
+        listingId: listingId || "home",
+        spotName,
+        href,
+        error: "This remaining payment does not match a winning bid",
+      });
+    }
+    return {
+      unpaid: false,
+      already: paid.already,
+      kind: "balance",
+      listingId: paid.listingId,
+      spotId: 0,
+      spotName,
+      href: `/b/${paid.listingId}`,
+      bid: asLiveBid({
+        amountCents: paid.amountCents,
+        brandName: paid.brandName,
+        status: "live",
+      }),
+    };
+  } catch (err) {
+    return emptyResult({
+      kind: "balance",
+      listingId: listingId || "home",
+      spotName,
+      href,
+      error: publicError(err, "Could not record remaining payment"),
+    });
+  }
+}
+
 export async function recordPaidCheckout(
   session: Stripe.Checkout.Session,
   options?: { logoUrl?: string },
@@ -131,6 +186,10 @@ export async function recordPaidCheckout(
 
   if (session.payment_status !== "paid") {
     return emptyResult({ unpaid: true });
+  }
+
+  if (asString(session.metadata?.kind) === "balance") {
+    return recordBalanceCheckout(session);
   }
 
   const paymentIntentId = paymentIntentIdFromSession(session);

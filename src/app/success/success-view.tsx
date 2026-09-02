@@ -8,6 +8,7 @@ import { formatUsd } from "@/lib/auction";
 type CompleteResult = {
   unpaid?: boolean;
   already?: boolean;
+  kind?: "deposit" | "balance";
   error?: string;
   refundError?: string;
   listingId?: string;
@@ -86,8 +87,19 @@ export function SuccessView({ sessionId }: { sessionId: string }) {
         return;
       }
       if (result.bid) {
-        setHeading(result.already ? "Bid already recorded" : "You're on the body");
-        let next = `${result.bid.brandName ?? "Your brand"} is live on ${result.spotName ?? "this spot"} at ${formatUsd(result.bid.amountCents ?? 0)}.`;
+        const isBalance = result.kind === "balance";
+        setHeading(
+          result.already
+            ? isBalance
+              ? "Remaining 80% already recorded"
+              : "Bid already recorded"
+            : isBalance
+              ? "Remaining 80% received"
+              : "You're on the body",
+        );
+        let next = isBalance
+          ? `${result.bid.brandName ?? "Your brand"} paid the remaining 80% for ${result.spotName || "this spot"} (${formatUsd(result.bid.amountCents ?? 0)} bid).`
+          : `${result.bid.brandName ?? "Your brand"} is live on ${result.spotName ?? "this spot"} at ${formatUsd(result.bid.amountCents ?? 0)}.`;
         if (result.refundError) {
           next = `${next} Previous bidder could not be refunded: ${result.refundError}`;
         }

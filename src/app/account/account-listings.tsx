@@ -13,6 +13,8 @@ import {
 
 const CONFIRM =
   "This refunds all live deposits and takes the listing down.";
+const CLOSE_CONFIRM =
+  "This closes the auction. Live high bids win. Remaining 80% Payment Links are created. Outbid deposits are not charged.";
 
 function RemoveButton({
   listingId,
@@ -69,6 +71,52 @@ function RemoveButton({
   );
 }
 
+function CloseButton({ listingId }: { listingId: string }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onClose() {
+    if (busy) return;
+    if (!window.confirm(CLOSE_CONFIRM)) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/listings/${listingId}/close`, {
+        method: "POST",
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        closeError?: string | null;
+      };
+      if (!res.ok) {
+        setError(data.error ?? "Could not close listing");
+        setBusy(false);
+        return;
+      }
+      if (data.closeError) setError(data.closeError);
+      router.refresh();
+      setBusy(false);
+    } catch {
+      setError("Could not close listing");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={busy}
+        className="text-sm text-accent hover:underline disabled:opacity-50"
+      >
+        {busy ? "Closing…" : "Close auction"}
+      </button>
+      {error ? <p className="max-w-xs text-right text-sm text-accent">{error}</p> : null}
+    </div>
+  );
+}
 function ListingRow({
   listing,
   remove,
@@ -76,8 +124,14 @@ function ListingRow({
   listing: Listing;
   remove?: "owner" | "admin";
 }) {
-  const closed = isListingClosed(listing.endsAt);
+  const ended = isListingClosed(listing.endsAt) || listing.status === "closed";
   const removed = listing.status === "removed";
+  const canRemove = Boolean(remove) && listing.status === "live" && !ended;
+  const canClose =
+    remove === "admin" &&
+    !removed &&
+    ended &&
+    (listing.status === "live" || Boolean(listing.closeError));
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-5">
       <div>
@@ -93,7 +147,7 @@ function ListingRow({
             <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">
               Removed
             </span>
-          ) : closed ? (
+          ) : ended ? (
             <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">
               Closed
             </span>
@@ -112,6 +166,25 @@ function ListingRow({
         {listing.refundError ? (
           <p className="mt-2 text-sm text-accent">{listing.refundError}</p>
         ) : null}
+        {listing.closeError ? (
+          <p className="mt-2 text-sm text-accent">{listing.closeError}</p>
+        ) : null}
+        {listing.balanceLinks?.length ? (
+          <ul className="mt-2 space-y-1 text-sm">
+            {listing.balanceLinks.map((link) => (
+              <li key={link.url}>
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       <div className="flex flex-col items-end gap-2">
         {removed ? null : (
@@ -119,9 +192,10 @@ function ListingRow({
             View
           </a>
         )}
-        {remove && listing.status === "live" ? (
+        {canRemove ? (
           <RemoveButton listingId={listing.id} admin={remove === "admin"} />
         ) : null}
+        {canClose ? <CloseButton listingId={listing.id} /> : null}
       </div>
     </li>
   );

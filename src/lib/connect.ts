@@ -27,7 +27,3 @@ export function connectPayoutsCopy(mode?: StripeKeyMode | null) {
 }
 
 export const CONNECT_FEE_PERCENT = 0.1;
-
-export function applicationFeeCents(depositCents: number) {
-  return Math.max(1, Math.round(depositCents * CONNECT_FEE_PERCENT));
-}
