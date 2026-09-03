@@ -477,11 +477,6 @@ export function Landing({
         </section>
       </main>
 
-      <footer className="border-t border-line px-5 py-8 text-center text-sm text-muted">
-        Brand my Body. Paid placement. Not Brand My Shirt, Brand My Mac, or Brand
-        My X.
-      </footer>
-
       {!listingClosed ? (
         <dialog
           ref={dialogRef}
@@ -814,6 +809,17 @@ function GetSpotModal({
             Close
           </button>
         </div>
+        <p className="text-xs leading-5 text-muted">
+          By paying the deposit you agree to the{" "}
+          <a href="/terms" className="text-accent hover:underline">
+            Terms
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" className="text-accent hover:underline">
+            Privacy
+          </a>
+          .
+        </p>
       </form>
     </div>
   );

@@ -329,6 +329,17 @@ export function ListForm() {
       >
         {submitting ? "Saving…" : "Publish listing"}
       </button>
+      <p className="text-xs leading-5 text-muted">
+        By publishing you agree to the{" "}
+        <a href="/terms" className="text-accent hover:underline">
+          Terms
+        </a>{" "}
+        and{" "}
+        <a href="/privacy" className="text-accent hover:underline">
+          Privacy
+        </a>
+        .
+      </p>
     </form>
   );
 }

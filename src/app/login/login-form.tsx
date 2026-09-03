@@ -155,6 +155,17 @@ export function LoginForm({
         >
           {busy === "password" ? "Signing in…" : "Sign in"}
         </button>
+        <p className="text-xs leading-5 text-muted">
+          By signing in you agree to the{" "}
+          <a href="/terms" className="text-accent hover:underline">
+            Terms
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" className="text-accent hover:underline">
+            Privacy
+          </a>
+          .
+        </p>
       </form>
 
       {error ? <p className="text-sm text-accent">{error}</p> : null}

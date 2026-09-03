@@ -11,6 +11,7 @@ Notable changes to Brand my Body, grouped by the date they first landed.
 - Remove listing: `/account` live rows have “Remove listing” (confirm refunds live deposits and takes the listing down). `POST /api/listings/[id]/remove` checks the session owner. Emails in `ADMIN_EMAILS` also see every live listing with “Admin remove”. Sets `status = removed`, refunds live Stripe test deposits (`status = refunded`), hides the listing from `/browse` and `/b/[id]`. Refund errors show in the UI (no secrets). SQL: `supabase/listing-remove.sql`. Connect unchanged; test keys only.
 - Stripe test webhook: `POST /api/webhooks/stripe` verifies `Stripe-Signature` with `STRIPE_WEBHOOK_SECRET`. `checkout.session.completed` runs the same bid write, outbid refund, and anti-snipe as `/success`. Idempotent on session id (unique `listing_bids.stripe_session_id`). `/success` stays as a backup writer. Test mode only. SQL: `supabase/listing-bids-session-unique.sql`.
 - `/login` email + password (`signInWithPassword` on the same cookie client as magic link). Sign-in errors show on the page. Magic link / 6-digit code stays as a secondary option.
+- Site footer on every page with Terms (`/terms`) and Privacy (`/privacy`): marketplace rules (18+, 20% deposit, outbid refunds, 7-day remaining 80%, forfeit, 10% of the winning bid), Stripe / Supabase / Vercel / Resend processors, public listing data vs bidder email. Agree lines on Log in, List a body, and Get a spot.
 
 ## 2026-09-01
 
